@@ -6,9 +6,9 @@ DESIGN = bin/PhotoLab bin/PhotoLabTest
 #libs
 LIBS   = src/libFilter.a src/libFileIO.a
 
-CC     = gcc
+CC     = gcc -mavx -mfma 
 DEBUG  = -DDEBUG -g
-CFLAGS = -Wall -std=c11
+CFLAGS = -Wall -std=c99
 LFLAGS = -Wall -lm
 AR     = ar rc
 RANLIB = ranlib
@@ -56,19 +56,23 @@ src/DIPs.o: src/DIPs.h src/DIPs.c src/Constants.h
 src/Advanced.o: src/Advanced.h src/Advanced.c src/Constants.h
 	$(CC) $(CFLAGS) -c src/Advanced.c -o src/Advanced.o
 
+#target to generate kernel.o
+src/kernel.o: src/kernel.h src/kernel.c src/Constants.h
+	$(CC) $(CFLAGS) -c src/kernel.c -o src/kernel.o
+
 #target to generate PhotoLab.o
-src/PhotoLab.o: src/PhotoLab.c src/DIPs.h src/Advanced.h src/FileIO.h src/Constants.h src/Image.h
+src/PhotoLab.o: src/PhotoLab.c src/DIPs.h src/Advanced.h src/kernel.h src/FileIO.h src/Constants.h src/Image.h 
 	$(CC) $(CFLAGS) -c src/PhotoLab.c -o src/PhotoLab.o
 
 #target to generate FileIO_DEBUG.o
-src/PhotoLab_DEBUG.o: src/PhotoLab.c src/DIPs.h src/Advanced.h src/FileIO.h src/Constants.h src/Image.h
+src/PhotoLab_DEBUG.o: src/PhotoLab.c src/DIPs.h src/Advanced.h src/kernel.h src/FileIO.h src/Constants.h src/Image.h 
 	$(CC) $(CFLAGS) $(DEBUG) -c src/PhotoLab.c -o src/PhotoLab_DEBUG.o
 
 ########### generate library files ###########
 
 #target to generate libFilter.a
-src/libFilter.a: src/DIPs.o src/Advanced.o
-	$(AR) src/libFilter.a src/Advanced.o src/DIPs.o
+src/libFilter.a: src/DIPs.o src/Advanced.o src/kernel.o
+	$(AR) src/libFilter.a src/Advanced.o src/DIPs.o src/kernel.o
 	$(RANLIB) src/libFilter.a
 
 ########### generate executables ###########
