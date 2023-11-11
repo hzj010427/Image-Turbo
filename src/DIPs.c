@@ -25,9 +25,11 @@ Image *Edge(Image *image) {
 	int             x, y, m, n, a, b;
 	int HEIGHT = ImageHeight(image);
 	int WIDTH = ImageWidth(image);
-	unsigned char   tmpR[WIDTH][HEIGHT];
-	unsigned char   tmpG[WIDTH][HEIGHT];
-	unsigned char   tmpB[WIDTH][HEIGHT];
+	printf("WIDTH: %d\n", WIDTH);
+	printf("HEIGHT: %d\n", HEIGHT);
+	double   tmpR[WIDTH][HEIGHT];
+	double  tmpG[WIDTH][HEIGHT];
+	double   tmpB[WIDTH][HEIGHT];
 	for (y = 0; y < HEIGHT; y++){
 		for (x = 0; x < WIDTH; x++) {
 			tmpR[x][y] = GetPixelR(image, x, y);

@@ -12,7 +12,7 @@
 #include "Constants.h"
 
 /* Get the R intensity of pixel (x, y) in image */
-unsigned char GetPixelR(const Image *image, unsigned int x,  unsigned int y) {
+double GetPixelR(const Image *image, unsigned int x,  unsigned int y) {
 	/* Make sure the input pointer is valid */
 	assert(image);
 	/* Ensure that the coordinates are within the valid ranges for the image */
@@ -23,7 +23,7 @@ unsigned char GetPixelR(const Image *image, unsigned int x,  unsigned int y) {
 }
 
 /* Get the G intensity of pixel (x, y) in image */
-unsigned char GetPixelG(const Image *image, unsigned int x,  unsigned int y) {
+double GetPixelG(const Image *image, unsigned int x,  unsigned int y) {
 	/* Make sure the input pointer is valid */
 	assert(image);
 	/* Ensure that the coordinates are within the valid ranges for the image */
@@ -34,7 +34,7 @@ unsigned char GetPixelG(const Image *image, unsigned int x,  unsigned int y) {
 }
 
 /* Get the B intensity of pixel (x, y) in image */
-unsigned char GetPixelB(const Image *image, unsigned int x,  unsigned int y) {
+double GetPixelB(const Image *image, unsigned int x,  unsigned int y) {
 	/* Make sure the input pointer is valid */
 	assert(image);
 	/* Ensure that the coordinates are within the valid ranges for the image */

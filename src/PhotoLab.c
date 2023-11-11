@@ -9,20 +9,13 @@
 #include "Image.h"
 #include "DIPs.h"
 #include "Advanced.h"
+#include "kernel.h"
 #include "FileIO.h"
 #include "Constants.h"
 
 /*** used for performance test ***/
 #include <math.h>
 #include "immintrin.h"
-
-/*** used for performance test ***/
-//timing routine for reading the time stamp counter
-static __inline__ unsigned long long rdtsc(void) {
-  unsigned hi, lo;
-  __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
-  return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
-}
 
 /* print a menu */
 void PrintMenu();
@@ -33,8 +26,6 @@ int main(void)
 	int option;			/* user input option */
 	char fname[SLEN];		/* input file name */
 	Image *image = NULL;		/* pointer initialization */
-
-	unsigned long long t0, t1;	/* used for performance test */
 	
 	PrintMenu();
 	printf("Please make your choice: ");
@@ -62,7 +53,7 @@ int main(void)
 		}
 
 		/* menu item 2 - 18 requires image is loaded first */
-		else if (option >= 2 && option <= 5) {
+		else if (option >= 2 && option <= 6) {
 			if (image == NULL)	 {
 				printf("No image to process!\n");
 			}
@@ -81,15 +72,8 @@ int main(void)
 						printf("\"Motion Blur\" operation is done!\n"); 
 						break;
 					case 4:
-						t0 = rdtsc();
 						image = Edge(image);
-						t1 = rdtsc();
 						printf("\"Edge\" operation is done!\n");
-
-						/*** performance test ***/
-						printf("Width: %d, Height: %d, Number of SIMD_ADD per pixel: %d, Number of channels: %d, Number of SIMD_ADD per cycle: %lf\n", 
-							(image->W - 2), (image->H - 2), 16, 3, 16 * 3 * (image->W - 2) * (image->H - 2) / (double)(t1 - t0)*(MAX_FREQ/BASE_FREQ));
-						break;
 					case 5:
 						printf("Enter the angle of rotation:");
 						scanf("%lf", &Angle);
@@ -102,6 +86,10 @@ int main(void)
 						image = Rotate(image, Angle, ScaleFactor, CenterX, CenterY);
 						printf("\"Rotate\" operation is done!\n");
 						break;
+					case 6:
+						printf("The blur amount in turbo mode is set to 3.\n");
+						image = MotionBlur_Turbo(image);
+						printf("\"Motion Blur (Turbo)\" operation is done!\n");
 					default:
 						break;
 				}
@@ -133,5 +121,6 @@ void PrintMenu() {
 	printf(" 3: Motion Blur\n");
 	printf(" 4: Sketch the edge of an image\n");
 	printf(" 5: Rotate and zoom an image\n");
+	printf(" 6: Motion Blur (Turbo Mode)\n");
 	printf("20: Exit\n");
 }

@@ -16,13 +16,13 @@ typedef struct {
 } Image;
 
 /* Get the R intensity of pixel (x, y) in image */
-unsigned char GetPixelR(const Image *image, unsigned int x,  unsigned int y);
+double GetPixelR(const Image *image, unsigned int x,  unsigned int y);
 
 /* Get the G intensity of pixel (x, y) in image */
-unsigned char GetPixelG(const Image *image, unsigned int x,  unsigned int y);
+double GetPixelG(const Image *image, unsigned int x,  unsigned int y);
 
 /* Get the B intensity of pixel (x, y) in image */
-unsigned char GetPixelB(const Image *image, unsigned int x,  unsigned int y);
+double GetPixelB(const Image *image, unsigned int x,  unsigned int y);
 
 /* Set the R intensity of pixel (x, y) in image to r */
 void SetPixelR(Image *image, unsigned int x,  unsigned int y, unsigned char r);

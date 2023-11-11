@@ -30,9 +30,9 @@ Image *Rotate(Image *image, double Angle, double ScaleFactor,  int CenterX, int 
 
 	int HEIGHT = ImageHeight(image);
 	int WIDTH = ImageWidth(image);
-    unsigned char RotatedR[WIDTH][HEIGHT];
-    unsigned char RotatedG[WIDTH][HEIGHT];
-    unsigned char RotatedB[WIDTH][HEIGHT];
+    double RotatedR[WIDTH][HEIGHT];
+    double RotatedG[WIDTH][HEIGHT];
+    double RotatedB[WIDTH][HEIGHT];
     int x, y;
     int x2, y2;
     const double pi = 3.14159265358979323846;
