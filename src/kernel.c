@@ -37,7 +37,7 @@ Image *MotionBlur_Turbo(Image *image) {
     int             x, y;
     int HEIGHT = ImageHeight(image);
 	int WIDTH = ImageWidth(image);
-    int TOTAL_PIXELS = HEIGHT * WIDTH;
+    int TOTAL_PIXELS = HEIGHT * WIDTH; // 480 * 280
     int TMP_TOTAL_PIXELS = ((TOTAL_PIXELS / 4) - 4 + 1) * 4 * 4;
 
     double   blurR[TOTAL_PIXELS];
@@ -61,7 +61,7 @@ Image *MotionBlur_Turbo(Image *image) {
     printf("check1\n");
 
     /* get blurR, blurG, blurB */
-	for (y = 0; y < HEIGHT; y++){
+	for (y = 0; y < HEIGHT; y++) {
 		for (x = 0; x < WIDTH; x++) {
 			blurR[x + y * WIDTH] = GetPixelR(image, x, y); // 480 * 280
 			blurG[x + y * WIDTH] = GetPixelG(image, x, y);
@@ -85,16 +85,23 @@ Image *MotionBlur_Turbo(Image *image) {
 
     printf("check4\n");
 
+    /* postprocess */
+    post_process_blur(resultR, resultR, TOTAL_PIXELS);
+    post_process_blur(resultG, resultG, TOTAL_PIXELS);
+    post_process_blur(resultB, resultB, TOTAL_PIXELS);
+
+    printf("check5\n");
+
     /* set the RGB */
 	for (y = 0; y < HEIGHT; y++){
 		for (x = 0; x < WIDTH; x++) {
-            SetPixelR(image, x, y, resultR[x * 4 + y]);
-			SetPixelG(image, x, y, resultG[x * 4 + y]);
-			SetPixelB(image, x, y, resultB[x * 4 + y]);
+            SetPixelR(image, x, y, resultR[x + y * WIDTH]);
+			SetPixelG(image, x, y, resultG[x + y * WIDTH]);
+			SetPixelB(image, x, y, resultB[x + y * WIDTH]);
 		}
 	}
 
-    printf("check5\n");
+    printf("check6\n");
 
     free(tmpR);
     free(tmpG);
@@ -112,34 +119,34 @@ Image *MotionBlur_Turbo(Image *image) {
 void pre_process_blur(double* input, double* output, int numPixels) {
     __m256d ymm0, ymm1, ymm2, ymm3;
     __m256d ymm4, ymm5, ymm6, ymm7;
-    __m256d ymm8, ymm9;
-    for (int j = 0; j < numPixels / 28; j += 1) {
-        for (int i = 0; i < 4; i += 1) {
-            ymm0 = _mm256_setzero_pd();  ymm1 = _mm256_setzero_pd();
-            ymm2 = _mm256_setzero_pd();  ymm3 = _mm256_setzero_pd();
-            ymm4 = _mm256_setzero_pd();  ymm5 = _mm256_setzero_pd();
-            ymm6 = _mm256_setzero_pd();  ymm7 = _mm256_setzero_pd();
-            ymm8 = _mm256_setzero_pd();  ymm9 = _mm256_setzero_pd();
-            ymm0 = _mm256_loadu_pd(&input[j * 28 + i * 4]);
-            ymm1 = _mm256_loadu_pd(&input[j * 28 + i * 4 + 4]);
-            ymm2 = _mm256_loadu_pd(&input[j * 28 + i * 4 + 8]);
-            ymm3 = _mm256_loadu_pd(&input[j * 28 + i * 4 + 12]);
+    __m256d ymm8, ymm9, ymm10, ymm11;
 
-            // [a, b, c, d]
-            ymm4 = _mm256_shuffle_pd(ymm0, ymm1, 0xc);  // [r0, r4, r3, r7] position a and d
-            ymm5 = _mm256_shuffle_pd(ymm2, ymm3, 0xc);  // [r8, r12, r11, r15]
-            ymm6 = _mm256_permute2f128_pd(ymm4, ymm5, 0x20);  // [r0, r4, r8, r12]     #1
-            ymm7 = _mm256_permute2f128_pd(ymm4, ymm5, 0x30);  // [r3, r7, r11, r15]    #4
-            ymm4 = _mm256_shuffle_pd(ymm0, ymm1, 0x3); // [r1, r5, r2, r6] position b and c
-            ymm5 = _mm256_shuffle_pd(ymm2, ymm3, 0x3); // [r9, r13, r10, r14]
-            ymm8 = _mm256_permute2f128_pd(ymm4, ymm5, 0x20);  // [r1, r5, r9, r13]     #2
-            ymm9 = _mm256_permute2f128_pd(ymm4, ymm5, 0x30);  // [r2, r6, r10, r14]    #3
+    for (int i = 0; i < (4 * (1 + (numPixels - 16) / 4)); i += 4) {
+        ymm0 = _mm256_setzero_pd();  ymm1 = _mm256_setzero_pd();
+        ymm2 = _mm256_setzero_pd();  ymm3 = _mm256_setzero_pd();
+        ymm4 = _mm256_setzero_pd();  ymm5 = _mm256_setzero_pd();
+        ymm6 = _mm256_setzero_pd();  ymm7 = _mm256_setzero_pd();
+        ymm8 = _mm256_setzero_pd();  ymm9 = _mm256_setzero_pd();
+        ymm10 = _mm256_setzero_pd();  ymm11 = _mm256_setzero_pd();
 
-            _mm256_storeu_pd(&output[64 * j + 16 * i], ymm6);
-            _mm256_storeu_pd(&output[64 * j + 16 * i + 4], ymm8);
-            _mm256_storeu_pd(&output[64 * j + 16 * i + 8], ymm9);
-            _mm256_storeu_pd(&output[64 * j + 16 * i + 12], ymm7);
-        }
+        ymm0 = _mm256_loadu_pd(&input[i]);
+        ymm1 = _mm256_loadu_pd(&input[i+4]);
+        ymm2 = _mm256_loadu_pd(&input[i+8]);
+        ymm3 = _mm256_loadu_pd(&input[i+12]);
+
+        ymm4 = _mm256_permute2f128_pd(ymm0, ymm2, 0x20);
+        ymm5 = _mm256_permute2f128_pd(ymm1, ymm3, 0x20);
+        ymm6 = _mm256_permute2f128_pd(ymm0, ymm2, 0x31);
+        ymm7 = _mm256_permute2f128_pd(ymm1, ymm3, 0x31);
+        ymm8 = _mm256_shuffle_pd(ymm4, ymm5, 0x0);
+        ymm9 = _mm256_shuffle_pd(ymm4, ymm5, 0xf);
+        ymm10 = _mm256_shuffle_pd(ymm6, ymm7, 0x0);
+        ymm11 = _mm256_shuffle_pd(ymm6, ymm7, 0xf);
+
+        _mm256_storeu_pd(&output[i*4], ymm8);
+        _mm256_storeu_pd(&output[i*4+4], ymm9);
+        _mm256_storeu_pd(&output[i*4+8], ymm10);
+        _mm256_storeu_pd(&output[i*4+12], ymm11);
     }
 }
 
@@ -154,7 +161,6 @@ void kernel_blur(double* input, double* output, int numPixels) {
     __m256d ymm0, ymm1, ymm2, ymm3, ymm4, ymm5;
     __m256d ymm6, ymm7, ymm8, ymm9, ymm10, ymm11, ymm12, ymm13;
 
-    for (int j = 0; j < (numPixels / 128); j += 128) {
         ymm0 = _mm256_setzero_pd();  ymm1 = _mm256_setzero_pd();
         ymm2 = _mm256_setzero_pd();  ymm3 = _mm256_setzero_pd();
         ymm4 = _mm256_setzero_pd();  ymm5 = _mm256_setzero_pd();
@@ -163,6 +169,8 @@ void kernel_blur(double* input, double* output, int numPixels) {
         ymm10 = _mm256_setzero_pd();  ymm11 = _mm256_setzero_pd();
         ymm12 = _mm256_setzero_pd();  ymm13 = _mm256_setzero_pd();
 
+    for (int j = 0; j < numPixels; j += 128) {
+        
         ymm0 = _mm256_set_pd(1/2, 1/2, 1/2, 1/2);
         ymm1 = _mm256_set_pd(1/6, 1/6, 1/6, 1/6);
 
@@ -229,15 +237,54 @@ void kernel_blur(double* input, double* output, int numPixels) {
         ymm13 = _mm256_fmadd_pd(ymm4, ymm1, ymm13);
 
         /* store to result */
-        _mm256_storeu_pd(&output[j / 4 - counter * 32], ymm6);
-        _mm256_storeu_pd(&output[j / 4 - counter * 32 + 4], ymm7);
-        _mm256_storeu_pd(&output[j / 4 - counter * 32 + 8], ymm8);
-        _mm256_storeu_pd(&output[j / 4 - counter * 32 + 12], ymm9);
-        _mm256_storeu_pd(&output[j / 4 - counter * 32 + 16], ymm10);
-        _mm256_storeu_pd(&output[j / 4 - counter * 32 + 20], ymm11);
-        _mm256_storeu_pd(&output[j / 4 - counter * 32 + 24], ymm12);
-        _mm256_storeu_pd(&output[j / 4 - counter * 32 + 28], ymm13);
+        _mm256_storeu_pd(&output[j / 4], ymm6);
+        _mm256_storeu_pd(&output[j / 4 + 4], ymm7);
+        _mm256_storeu_pd(&output[j / 4 + 8], ymm8);
+        _mm256_storeu_pd(&output[j / 4 + 12], ymm9);
+        _mm256_storeu_pd(&output[j / 4 + 16], ymm10);
+        _mm256_storeu_pd(&output[j / 4 + 20], ymm11);
+        _mm256_storeu_pd(&output[j / 4 + 24], ymm12);
+        _mm256_storeu_pd(&output[j / 4 + 28], ymm13);
 
         counter++;
+    }
+}
+
+/**
+ * @brief This function post-processes the image for motion blur by shuffling and permuting the pixels.
+ * @param input The image before post-processing.
+ * @param output The image after post-processing. 
+ */
+void post_process_blur(double* input, double* output, int numPixels) {
+    __m256d ymm0, ymm1, ymm2, ymm3;
+    __m256d ymm4, ymm5, ymm6, ymm7;
+    __m256d ymm8, ymm9, ymm10, ymm11;
+
+    for (int i = 0; i < numPixels; i += 16) {
+        ymm0 = _mm256_setzero_pd();  ymm1 = _mm256_setzero_pd();
+        ymm2 = _mm256_setzero_pd();  ymm3 = _mm256_setzero_pd();
+        ymm4 = _mm256_setzero_pd();  ymm5 = _mm256_setzero_pd();
+        ymm6 = _mm256_setzero_pd();  ymm7 = _mm256_setzero_pd();
+        ymm8 = _mm256_setzero_pd();  ymm9 = _mm256_setzero_pd();
+        ymm10 = _mm256_setzero_pd();  ymm11 = _mm256_setzero_pd();
+
+        ymm0 = _mm256_loadu_pd(&input[i]);
+        ymm1 = _mm256_loadu_pd(&input[i+4]);
+        ymm2 = _mm256_loadu_pd(&input[i+8]);
+        ymm3 = _mm256_loadu_pd(&input[i+12]);
+
+        ymm4 = _mm256_permute2f128_pd(ymm0, ymm2, 0x20);
+        ymm5 = _mm256_permute2f128_pd(ymm1, ymm3, 0x20);
+        ymm6 = _mm256_permute2f128_pd(ymm0, ymm2, 0x31);
+        ymm7 = _mm256_permute2f128_pd(ymm1, ymm3, 0x31);
+        ymm8 = _mm256_shuffle_pd(ymm4, ymm5, 0x0);
+        ymm9 = _mm256_shuffle_pd(ymm4, ymm5, 0xf);
+        ymm10 = _mm256_shuffle_pd(ymm6, ymm7, 0x0);
+        ymm11 = _mm256_shuffle_pd(ymm6, ymm7, 0xf);
+
+        _mm256_storeu_pd(&output[i], ymm8);
+        _mm256_storeu_pd(&output[i+4], ymm9);
+        _mm256_storeu_pd(&output[i+8], ymm10);
+        _mm256_storeu_pd(&output[i+12], ymm11);
     }
 }
