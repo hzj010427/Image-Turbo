@@ -171,8 +171,8 @@ void kernel_blur(double* input, double* output, int numPixels) {
 
     for (int j = 0; j < numPixels; j += 128) {
         
-        ymm0 = _mm256_set_pd(1/2, 1/2, 1/2, 1/2);
-        ymm1 = _mm256_set_pd(1/6, 1/6, 1/6, 1/6);
+        ymm0 = _mm256_set_pd((double)1/2, (double)1/2, (double)1/2, (double)1/2);
+        ymm1 = _mm256_set_pd((double)1/6, (double)1/6, (double)1/6, (double)1/6);
 
         ymm2 = _mm256_loadu_pd(&input[j]);
         ymm3 = _mm256_loadu_pd(&input[j+4]);
