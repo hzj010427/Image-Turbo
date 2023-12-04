@@ -12,7 +12,7 @@
 #include "Constants.h"
 
 /* Get the R intensity of pixel (x, y) in image */
-double GetPixelR(const Image *image, unsigned int x,  unsigned int y) {
+unsigned char GetPixelR(const Image *image, unsigned int x,  unsigned int y) {
 	/* Make sure the input pointer is valid */
 	assert(image);
 	/* Ensure that the coordinates are within the valid ranges for the image */
@@ -23,7 +23,7 @@ double GetPixelR(const Image *image, unsigned int x,  unsigned int y) {
 }
 
 /* Get the G intensity of pixel (x, y) in image */
-double GetPixelG(const Image *image, unsigned int x,  unsigned int y) {
+unsigned char GetPixelG(const Image *image, unsigned int x,  unsigned int y) {
 	/* Make sure the input pointer is valid */
 	assert(image);
 	/* Ensure that the coordinates are within the valid ranges for the image */
@@ -34,7 +34,7 @@ double GetPixelG(const Image *image, unsigned int x,  unsigned int y) {
 }
 
 /* Get the B intensity of pixel (x, y) in image */
-double GetPixelB(const Image *image, unsigned int x,  unsigned int y) {
+unsigned char GetPixelB(const Image *image, unsigned int x,  unsigned int y) {
 	/* Make sure the input pointer is valid */
 	assert(image);
 	/* Ensure that the coordinates are within the valid ranges for the image */
@@ -45,7 +45,7 @@ double GetPixelB(const Image *image, unsigned int x,  unsigned int y) {
 }
 
 /* Set the R intensity of pixel (x, y) in image to r */
-void SetPixelR(Image *image, unsigned int x,  unsigned int y, double r) {
+void SetPixelR(Image *image, unsigned int x,  unsigned int y, unsigned char r) {
 	/* Make sure the input pointer is valid */
 	assert(image);
 	/* Ensure that the coordinates are within the valid ranges for the image */
@@ -56,7 +56,7 @@ void SetPixelR(Image *image, unsigned int x,  unsigned int y, double r) {
 }
 
 /* Set the G intensity of pixel (x, y) in image to g */
-void SetPixelG(Image *image, unsigned int x,  unsigned int y, double g) {
+void SetPixelG(Image *image, unsigned int x,  unsigned int y, unsigned char g) {
 	/* Make sure the input pointer is valid */
 	assert(image);
 	/* Ensure that the coordinates are within the valid ranges for the image */
@@ -67,7 +67,7 @@ void SetPixelG(Image *image, unsigned int x,  unsigned int y, double g) {
 }
 
 /* Set the B intensity of pixel (x, y) in image to b */
-void SetPixelB(Image *image, unsigned int x,  unsigned int y, double b) {
+void SetPixelB(Image *image, unsigned int x,  unsigned int y, unsigned char b) {
 	/* Make sure the input pointer is valid */
 	assert(image);
 	/* Ensure that the coordinates are within the valid ranges for the image */
@@ -84,9 +84,9 @@ Image *CreateImage(unsigned int Width, unsigned int Height) {
 	image = malloc(sizeof(Image));
 	image->W = Width;
 	image->H = Height;
-	image->R = malloc(sizeof(double) * Width * Height);
-	image->G = malloc(sizeof(double) * Width * Height);
-	image->B = malloc(sizeof(double) * Width * Height);
+	image->R = malloc(sizeof(unsigned char) * Width * Height);
+	image->G = malloc(sizeof(unsigned char) * Width * Height);
+	image->B = malloc(sizeof(unsigned char) * Width * Height);
 	/* Check the return value of malloc */
 	if ((! image) || (! (image->R)) || (! (image->G)) || (! (image->B))) {
 		perror("Out of memory!");

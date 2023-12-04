@@ -23,7 +23,7 @@
  * @param CenterY The y coordinate of the center of rotation.
  * @return The image after rotation.
  */
-Image *Rotate(Image *image, double Angle, double ScaleFactor,  int CenterX, int CenterY)
+Image *Rotate(Image *image, double Angle, double ScaleFactor, int CenterX, int CenterY)
 {
 	/* Make sure the input pointer is valid */
 	assert(image);
@@ -97,7 +97,6 @@ Image *MotionBlur(Image *image, unsigned char BlurAmount)
 	double sumG;
 	double sumB;
 	int counter;
-
 	/* calculate the new value of R G B for each pixel */
 
 	for (int i = 0; i < WIDTH; i++) {
