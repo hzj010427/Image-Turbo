@@ -6,7 +6,7 @@ DESIGN = bin/PhotoLab bin/PhotoLabTest
 #libs
 LIBS   = src/libFilter.a src/libFileIO.a
 
-CC     = gcc -mavx -mfma 
+CC     = gcc -mavx -mfma
 DEBUG  = -DDEBUG -g
 CFLAGS = -Wall -std=c99
 LFLAGS = -Wall -lm
@@ -30,6 +30,7 @@ IMAGES = pic/bw.ppm \
 	 pic/bigresize.ppm \
 	 pic/smallresize.ppm \
 	 pic/watermark.ppm \
+	 pic/test.ppm \
 
 all: bin/PhotoLab bin/PhotoLabTest
 
