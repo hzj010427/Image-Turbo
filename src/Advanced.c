@@ -104,6 +104,7 @@ Image *MotionBlur(Image *image, unsigned char BlurAmount)
 			sumR = 0;
 			sumG = 0;
 			sumB = 0;
+
 			for (counter = 0; counter < BlurAmount; counter++) {
 				if (i + counter >= WIDTH - 1) {
 					break;
@@ -112,6 +113,7 @@ Image *MotionBlur(Image *image, unsigned char BlurAmount)
 				sumG += GetPixelG(image, i + counter + 1, j);
 				sumB += GetPixelB(image, i + counter + 1, j);
 			}
+
 			SetPixelR(image, i, j, ((GetPixelR(image, i, j)) / 2) + (sumR / counter / 2));
 			SetPixelG(image, i, j, ((GetPixelG(image, i, j)) / 2) + (sumG / counter / 2));
 			SetPixelB(image, i, j, ((GetPixelB(image, i, j)) / 2) + (sumB / counter / 2));

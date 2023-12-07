@@ -10,19 +10,19 @@
 typedef struct {
 	unsigned int W;	   /* image width */
 	unsigned int H;    /* image height */
-	unsigned char *R;  /* pointer to the memory storing all the R intensity values */
-	unsigned char *G;  /* pointer to the memory storing all the G intensity values */
-	unsigned char *B;  /* pointer to the memory storing all the B intensity values */
+	double *R;  /* pointer to the memory storing all the R intensity values */
+	double *G;  /* pointer to the memory storing all the G intensity values */
+	double *B;  /* pointer to the memory storing all the B intensity values */
 } Image;
 
 /* Get the R intensity of pixel (x, y) in image */
-unsigned char GetPixelR(const Image *image, unsigned int x,  unsigned int y);
+double GetPixelR(const Image *image, unsigned int x,  unsigned int y);
 
 /* Get the G intensity of pixel (x, y) in image */
-unsigned char GetPixelG(const Image *image, unsigned int x,  unsigned int y);
+double GetPixelG(const Image *image, unsigned int x,  unsigned int y);
 
 /* Get the B intensity of pixel (x, y) in image */
-unsigned char GetPixelB(const Image *image, unsigned int x,  unsigned int y);
+double GetPixelB(const Image *image, unsigned int x,  unsigned int y);
 
 /* Set the R intensity of pixel (x, y) in image to r */
 void SetPixelR(Image *image, unsigned int x,  unsigned int y, unsigned char r);

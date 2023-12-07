@@ -1,6 +1,6 @@
 /*********************************************************************/
 /* Updated by: Zijie Huang                                           */
-/* Date:   11/10/2023                                                */
+/* Date:   12/05/2023                                                */
 /*********************************************************************/
 
 #include "kernel.h"
@@ -13,6 +13,17 @@
 #include <stdio.h>
 #include <assert.h>
 #include <immintrin.h>
+#include <math.h>
+
+/*** used for performance test ***/
+static __inline__ unsigned long long rdtsc(void) {
+  unsigned hi, lo;
+  __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
+  return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
+}
+
+unsigned long long t0, t1, t2, t3, t4, t5;
+
 
 /* Edge detection optimized version */
 /* Image *Edge_Turbo(Image *image) {
@@ -34,19 +45,19 @@ Image *MotionBlur_Turbo(Image *image) {
     /* Make sure the input pointer is valid */
     assert(image);
 
-    int             x, y;
+    int             i, j;
     int HEIGHT = ImageHeight(image);
 	int WIDTH = ImageWidth(image);
     int TOTAL_PIXELS = HEIGHT * WIDTH; // 480 * 280
     __m256d ymm0, ymm1, ymm2, ymm3, ymm4, ymm5, ymm6, ymm7;
-    __m256d ymm8, ymm9, ymm10, ymm11, ymm12, ymm13, ymm14, ymm15;
+    __m256d ymm8, ymm9, ymm10;
 
-    unsigned char blurR[TOTAL_PIXELS];
-	unsigned char blurG[TOTAL_PIXELS];
-	unsigned char blurB[TOTAL_PIXELS];
-    unsigned char resultR[TOTAL_PIXELS];
-    unsigned char resultG[TOTAL_PIXELS];
-    unsigned char resultB[TOTAL_PIXELS];
+    double blurR[TOTAL_PIXELS];
+	double blurG[TOTAL_PIXELS];
+	double blurB[TOTAL_PIXELS];
+    double resultR[TOTAL_PIXELS];
+    double resultG[TOTAL_PIXELS];
+    double resultB[TOTAL_PIXELS];
 
     /* SIMD initialization */
     ymm0 = _mm256_setzero_pd();  ymm1 = _mm256_setzero_pd();
@@ -54,23 +65,18 @@ Image *MotionBlur_Turbo(Image *image) {
     ymm4 = _mm256_setzero_pd();  ymm5 = _mm256_setzero_pd();
     ymm6 = _mm256_setzero_pd();  ymm7 = _mm256_setzero_pd();
     ymm8 = _mm256_setzero_pd();  ymm9 = _mm256_setzero_pd();
-    ymm10 = _mm256_setzero_pd();  ymm11 = _mm256_setzero_pd();
-    ymm12 = _mm256_setzero_pd();  ymm13 = _mm256_setzero_pd();
-
-    printf("check1\n");
+    ymm10 = _mm256_setzero_pd();
 
     /* get blurR, blurG, blurB */
-	for (y = 0; y < HEIGHT; y++) {
-		for (x = 0; x < WIDTH; x++) {
-			blurR[x + y * WIDTH] = GetPixelR(image, x, y); // 480 * 280
-			blurG[x + y * WIDTH] = GetPixelG(image, x, y);
-			blurB[x + y * WIDTH] = GetPixelB(image, x, y);
+	for (i = 0; i < HEIGHT; i++) {
+		for (j = 0; j < WIDTH; j++) {
+			blurR[j + i * WIDTH] = GetPixelR(image, j, i); // 480 * 280
+			blurG[j + i * WIDTH] = GetPixelG(image, j, i);
+			blurB[j + i * WIDTH] = GetPixelB(image, j, i);
 		}
 	}
 
-    printf("check2\n");
-
-    /* loop peeling */
+    /****** loop peeling START ******/
     ymm0 = _mm256_set_pd((double)1/2, (double)1/2, (double)1/2, (double)1/2);
     ymm1 = _mm256_set_pd((double)1/6, (double)1/6, (double)1/6, (double)1/6);
 
@@ -121,6 +127,12 @@ Image *MotionBlur_Turbo(Image *image) {
     _mm256_storeu_pd(&resultR[12], ymm9);
 
     /* G channel */
+    ymm2 = _mm256_setzero_pd();  ymm3 = _mm256_setzero_pd();
+    ymm4 = _mm256_setzero_pd();  ymm5 = _mm256_setzero_pd();
+    ymm6 = _mm256_setzero_pd();  ymm7 = _mm256_setzero_pd();
+    ymm8 = _mm256_setzero_pd();  ymm9 = _mm256_setzero_pd();
+    ymm10 = _mm256_setzero_pd();
+
     ymm2 = _mm256_loadu_pd(&blurG[0]);
     ymm3 = _mm256_loadu_pd(&blurG[1]);
     ymm4 = _mm256_loadu_pd(&blurG[2]);
@@ -167,6 +179,12 @@ Image *MotionBlur_Turbo(Image *image) {
     _mm256_storeu_pd(&resultG[12], ymm9);
 
     /* B channel */
+    ymm2 = _mm256_setzero_pd();  ymm3 = _mm256_setzero_pd();
+    ymm4 = _mm256_setzero_pd();  ymm5 = _mm256_setzero_pd();
+    ymm6 = _mm256_setzero_pd();  ymm7 = _mm256_setzero_pd();
+    ymm8 = _mm256_setzero_pd();  ymm9 = _mm256_setzero_pd();
+    ymm10 = _mm256_setzero_pd();
+
     ymm2 = _mm256_loadu_pd(&blurB[0]);
     ymm3 = _mm256_loadu_pd(&blurB[1]);
     ymm4 = _mm256_loadu_pd(&blurB[2]);
@@ -211,19 +229,28 @@ Image *MotionBlur_Turbo(Image *image) {
     _mm256_storeu_pd(&resultB[4], ymm7);
     _mm256_storeu_pd(&resultB[8], ymm8);
     _mm256_storeu_pd(&resultB[12], ymm9);
+    /****** loop peeling END ******/
 
-    printf("check3\n");
-
-    /* kernel */
+    /****** kernel blur START ******/
+    t0 = rdtsc();
     kernel_blur(blurR, resultR, TOTAL_PIXELS, 16, TOTAL_PIXELS - 24, 40);
-    kernel_blur(blurR, resultR, TOTAL_PIXELS, 16, TOTAL_PIXELS - 24, 40);
-    kernel_blur(blurR, resultR, TOTAL_PIXELS, 16, TOTAL_PIXELS - 24, 40);
+    t1 = rdtsc();
+    kernel_blur(blurG, resultG, TOTAL_PIXELS, 16, TOTAL_PIXELS - 24, 40);
+    kernel_blur(blurB, resultB, TOTAL_PIXELS, 16, TOTAL_PIXELS - 24, 40);
 
-    printf("check4\n");
+    /* print the performance of kernel_blur */
+    /* printf("The performance of kernel_blur is %lf, with %d pixels\n", (2.0*TOTAL_PIXELS)/((double)(t1-t0)*MAX_FREQ/BASE_FREQ), TOTAL_PIXELS); */
+    /****** kernel blur END ******/
 
-    /* loop peeling */
+    /****** loop peeling START ******/
     ymm0 = _mm256_set_pd((double)1/2, (double)1/2, (double)1/2, (double)1/2);
     ymm1 = _mm256_set_pd((double)1/6, (double)1/6, (double)1/6, (double)1/6);
+
+    ymm2 = _mm256_setzero_pd();  ymm3 = _mm256_setzero_pd();
+    ymm4 = _mm256_setzero_pd();  ymm5 = _mm256_setzero_pd();
+    ymm6 = _mm256_setzero_pd();  ymm7 = _mm256_setzero_pd();
+    ymm8 = _mm256_setzero_pd();  ymm9 = _mm256_setzero_pd();
+    ymm10 = _mm256_setzero_pd();
 
     /* R channel */
     ymm2 = _mm256_loadu_pd(&blurR[TOTAL_PIXELS - 24]);
@@ -283,6 +310,12 @@ Image *MotionBlur_Turbo(Image *image) {
     _mm256_storeu_pd(&resultR[TOTAL_PIXELS - 8], ymm10);
 
     /* G channel */
+    ymm2 = _mm256_setzero_pd();  ymm3 = _mm256_setzero_pd();
+    ymm4 = _mm256_setzero_pd();  ymm5 = _mm256_setzero_pd();
+    ymm6 = _mm256_setzero_pd();  ymm7 = _mm256_setzero_pd();
+    ymm8 = _mm256_setzero_pd();  ymm9 = _mm256_setzero_pd();
+    ymm10 = _mm256_setzero_pd();
+
     ymm2 = _mm256_loadu_pd(&blurG[TOTAL_PIXELS - 24]);
     ymm3 = _mm256_loadu_pd(&blurG[TOTAL_PIXELS - 23]);
     ymm4 = _mm256_loadu_pd(&blurG[TOTAL_PIXELS - 22]);
@@ -340,6 +373,12 @@ Image *MotionBlur_Turbo(Image *image) {
     _mm256_storeu_pd(&resultG[TOTAL_PIXELS - 8], ymm10);
 
     /* B channel */
+    ymm2 = _mm256_setzero_pd();  ymm3 = _mm256_setzero_pd();
+    ymm4 = _mm256_setzero_pd();  ymm5 = _mm256_setzero_pd();
+    ymm6 = _mm256_setzero_pd();  ymm7 = _mm256_setzero_pd();
+    ymm8 = _mm256_setzero_pd();  ymm9 = _mm256_setzero_pd();
+    ymm10 = _mm256_setzero_pd();
+
     ymm2 = _mm256_loadu_pd(&blurB[TOTAL_PIXELS - 24]);
     ymm3 = _mm256_loadu_pd(&blurB[TOTAL_PIXELS - 23]);
     ymm4 = _mm256_loadu_pd(&blurB[TOTAL_PIXELS - 22]);
@@ -396,18 +435,15 @@ Image *MotionBlur_Turbo(Image *image) {
     _mm256_storeu_pd(&resultB[TOTAL_PIXELS - 12], ymm9);
     _mm256_storeu_pd(&resultB[TOTAL_PIXELS - 8], ymm10);
 
-    printf("check5\n");
-
     /* set the RGB */
-	for (y = 0; y < HEIGHT; y++){
-		for (x = 0; x < WIDTH; x++) {
-            SetPixelR(image, x, y, resultR[x + y * WIDTH]);
-			SetPixelG(image, x, y, resultG[x + y * WIDTH]);
-			SetPixelB(image, x, y, resultB[x + y * WIDTH]);
+	for (i = 0; i < HEIGHT; i++) {
+		for (j = 0; j < WIDTH; j++) {
+            SetPixelR(image, j, i, resultR[j + i * WIDTH]);
+			SetPixelG(image, j, i, resultG[j + i * WIDTH]);
+			SetPixelB(image, j, i, resultB[j + i * WIDTH]);
 		}
 	}
-
-    printf("check6\n");
+    /****** loop peeling END ******/
 
     return image;
 }
@@ -427,11 +463,16 @@ Image *MotionBlur_Turbo(Image *image) {
  * @param numOutput The kernel output
  * @param numPixels The number of pixels of the input the image.
  */
-void kernel_blur(unsigned char* input, unsigned char* output, int numPixels, int start, int numKernelPixels, int numOutput) {
+void kernel_blur(double* input, double* output, int numPixels, int start, int numKernelPixels, int numOutput) {
     __m256d ymm0, ymm1, ymm2, ymm3, ymm4, ymm5, ymm6, ymm7;
     __m256d ymm8, ymm9, ymm10, ymm11, ymm12, ymm13, ymm14, ymm15;
 
         ymm0 = _mm256_setzero_pd();  ymm1 = _mm256_setzero_pd();
+
+        ymm0 = _mm256_set_pd((double)1/2, (double)1/2, (double)1/2, (double)1/2);
+        ymm1 = _mm256_set_pd((double)1/6, (double)1/6, (double)1/6, (double)1/6);
+
+    for (int i = start; i < numKernelPixels; i += numOutput) {
         ymm2 = _mm256_setzero_pd();  ymm3 = _mm256_setzero_pd();
         ymm4 = _mm256_setzero_pd();  ymm5 = _mm256_setzero_pd();
         ymm6 = _mm256_setzero_pd();  ymm7 = _mm256_setzero_pd();
@@ -440,77 +481,73 @@ void kernel_blur(unsigned char* input, unsigned char* output, int numPixels, int
         ymm12 = _mm256_setzero_pd();  ymm13 = _mm256_setzero_pd();
         ymm14 = _mm256_setzero_pd();  ymm15 = _mm256_setzero_pd();
 
-        ymm0 = _mm256_set_pd((double)1/2, (double)1/2, (double)1/2, (double)1/2);
-        ymm1 = _mm256_set_pd((double)1/6, (double)1/6, (double)1/6, (double)1/6);
-
-    for (int i = start; i < numKernelPixels; i += numOutput) {
         ymm2 = _mm256_loadu_pd(&input[i]);
-        ymm3 = _mm256_loadu_pd(&input[i+1]);
-        ymm4 = _mm256_loadu_pd(&input[i+2]);
-        ymm5 = _mm256_loadu_pd(&input[i+3]);
+        ymm3 = _mm256_loadu_pd(&input[i+4]);
+        ymm4 = _mm256_loadu_pd(&input[i+8]);
+        ymm5 = _mm256_loadu_pd(&input[i+12]);
 
         ymm6 = _mm256_fmadd_pd(ymm2, ymm0, ymm6);
         ymm6 = _mm256_fmadd_pd(ymm3, ymm1, ymm6);
         ymm6 = _mm256_fmadd_pd(ymm4, ymm1, ymm6);
         ymm6 = _mm256_fmadd_pd(ymm5, ymm1, ymm6);
 
-        ymm2 = _mm256_loadu_pd(&input[i+4]);
+        ymm2 = _mm256_loadu_pd(&input[i+16]);
 
         ymm7 = _mm256_fmadd_pd(ymm3, ymm0, ymm7);
         ymm7 = _mm256_fmadd_pd(ymm4, ymm1, ymm7);
         ymm7 = _mm256_fmadd_pd(ymm5, ymm1, ymm7);
         ymm7 = _mm256_fmadd_pd(ymm2, ymm1, ymm7);
 
-        ymm3 = _mm256_loadu_pd(&input[i+5]);
+        ymm3 = _mm256_loadu_pd(&input[i+20]);
 
         ymm8 = _mm256_fmadd_pd(ymm4, ymm0, ymm8);
         ymm8 = _mm256_fmadd_pd(ymm5, ymm1, ymm8);
         ymm8 = _mm256_fmadd_pd(ymm2, ymm1, ymm8);
         ymm8 = _mm256_fmadd_pd(ymm3, ymm1, ymm8);
 
-        ymm4 = _mm256_loadu_pd(&input[i+6]);
+        ymm4 = _mm256_loadu_pd(&input[i+24]);
 
         ymm9 = _mm256_fmadd_pd(ymm5, ymm0, ymm9);
         ymm9 = _mm256_fmadd_pd(ymm2, ymm1, ymm9);
         ymm9 = _mm256_fmadd_pd(ymm3, ymm1, ymm9);
         ymm9 = _mm256_fmadd_pd(ymm4, ymm1, ymm9);
 
-        ymm5 = _mm256_loadu_pd(&input[i+7]);
+        ymm5 = _mm256_loadu_pd(&input[i+28]);
 
         ymm10 = _mm256_fmadd_pd(ymm2, ymm0, ymm10);
         ymm10 = _mm256_fmadd_pd(ymm3, ymm1, ymm10);
         ymm10 = _mm256_fmadd_pd(ymm4, ymm1, ymm10);
         ymm10 = _mm256_fmadd_pd(ymm5, ymm1, ymm10);
 
-        ymm2 = _mm256_loadu_pd(&input[i+8]);
+        ymm2 = _mm256_loadu_pd(&input[i+32]);
 
         ymm11 = _mm256_fmadd_pd(ymm3, ymm0, ymm11);
         ymm11 = _mm256_fmadd_pd(ymm4, ymm1, ymm11);
         ymm11 = _mm256_fmadd_pd(ymm5, ymm1, ymm11);
         ymm11 = _mm256_fmadd_pd(ymm2, ymm1, ymm11);
 
-        ymm3 = _mm256_loadu_pd(&input[i+9]);
+        ymm3 = _mm256_loadu_pd(&input[i+36]);
 
         ymm12 = _mm256_fmadd_pd(ymm4, ymm0, ymm12);
         ymm12 = _mm256_fmadd_pd(ymm5, ymm1, ymm12);
         ymm12 = _mm256_fmadd_pd(ymm2, ymm1, ymm12);
         ymm12 = _mm256_fmadd_pd(ymm3, ymm1, ymm12);
 
-        ymm4 = _mm256_loadu_pd(&input[i+10]);
+        ymm4 = _mm256_loadu_pd(&input[i+40]);
 
         ymm13 = _mm256_fmadd_pd(ymm5, ymm0, ymm13);
         ymm13 = _mm256_fmadd_pd(ymm2, ymm1, ymm13);
         ymm13 = _mm256_fmadd_pd(ymm3, ymm1, ymm13);
         ymm13 = _mm256_fmadd_pd(ymm4, ymm1, ymm13);
 
-        ymm5 = _mm256_loadu_pd(&input[i+11]);
+        ymm5 = _mm256_loadu_pd(&input[i+44]);
 
         ymm14 = _mm256_fmadd_pd(ymm2, ymm0, ymm14);
         ymm14 = _mm256_fmadd_pd(ymm3, ymm1, ymm14);
         ymm14 = _mm256_fmadd_pd(ymm4, ymm1, ymm14);
         ymm14 = _mm256_fmadd_pd(ymm5, ymm1, ymm14);
 
-        ymm2 = _mm256_loadu_pd(&input[i+12]);
+        ymm2 = _mm256_loadu_pd(&input[i+48]);
 
         ymm15 = _mm256_fmadd_pd(ymm3, ymm0, ymm15);
         ymm15 = _mm256_fmadd_pd(ymm4, ymm1, ymm15);

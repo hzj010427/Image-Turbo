@@ -17,6 +17,14 @@
 #include <math.h>
 #include "immintrin.h"
 
+static __inline__ unsigned long long rdtsc(void) {
+  unsigned hi, lo;
+  __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
+  return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
+}
+
+unsigned long long t0, t1, t2, t3;
+
 /* print a menu */
 void PrintMenu();
 
@@ -68,8 +76,11 @@ int main(void)
 					case 3:
 						printf("Please input motion blur amount: ");
 						scanf("%d", &motion_amount);
+						t0 = rdtsc();
 						image = MotionBlur(image, motion_amount);
+						t1 = rdtsc();
 						printf("\"Motion Blur\" operation is done!\n"); 
+						printf("The number of clock cycles for MotionBlur is %llu\n", t1 - t0);
 						break;
 					case 4:
 						image = Edge(image);
@@ -87,9 +98,12 @@ int main(void)
 						printf("\"Rotate\" operation is done!\n");
 						break;
 					case 6:
-						printf("The blur amount in turbo mode is set to 3.\n");
+						printf("The blur amount in turbo mode is set to 3\n");
+						t2 = rdtsc();
 						image = MotionBlur_Turbo(image);
+						t3 = rdtsc();
 						printf("\"Motion Blur (Turbo)\" operation is done!\n");
+						printf("The number of clock cycles for MotionBlur_Turbo is %llu\n", t3 - t2);
 					default:
 						break;
 				}

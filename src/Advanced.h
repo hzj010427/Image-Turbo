@@ -10,7 +10,7 @@
 #include "Image.h"
 
 /* rotate and zoom the image */
-Image *Rotate(Image *image, double Angle, double ScaleFactor,  int CenterX, int CenterY);
+Image *Rotate(Image *image, double Angle, double ScaleFactor, int CenterX, int CenterY);
 
 /* Add motion blur to an image */
 Image *MotionBlur(Image *image, unsigned char BlurAmount);
