@@ -152,7 +152,7 @@ void PrintMenu() {
     printf("=========================================================\n");
     printf("| Options:                                          	|\n");
     printf("|  1: Load a PPM image                              	|\n");
-    printf("|  2: Save an image in PPM format          	            |\n");
+    printf("|  2: Save an image in PPM format                       |\n");
     printf("|  3: Motion Blur                                   	|\n");
     printf("|  4: Sketch the edge of an image                   	|\n");
     printf("|  5: Rotate and zoom an image                      	|\n");
