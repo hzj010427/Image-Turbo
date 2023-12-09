@@ -1,6 +1,6 @@
 /*********************************************************************/
 /* Updated by: Zijie Huang                                           */
-/* Date:   11/10/2023                                                */
+/* Date:   12/09/2023                                                */
 /*********************************************************************/
 
 #include <stdio.h>
@@ -31,9 +31,9 @@ void PrintMenu();
 int main(void)
 {
 	int freecheck = 0;		/* check if the allocated memory is freed */
-	int option;			/* user input option */
+	int option;				/* user input option */
 	char fname[SLEN];		/* input file name */
-	Image *image = NULL;		/* pointer initialization */
+	Image *image = NULL;	/* pointer initialization */
 	
 	PrintMenu();
 	printf("Please make your choice: ");
@@ -42,9 +42,6 @@ int main(void)
 	/* Rotate() parameter */
 	double Angle, ScaleFactor;  
   	int CenterX, CenterY;
-
-	/* MotionBlur() parameter */
-	int motion_amount; 
 
 	while (option != EXIT) {
 		if (option == 1) {
@@ -57,10 +54,11 @@ int main(void)
 			image = LoadImage(fname);
 			if (image != NULL) {
 				freecheck = 1;
+				printf("\"%s\" was loaded successfully!\n", fname);
 			}
 		}
 
-		/* menu item 2 - 18 requires image is loaded first */
+		/* menu item 2 - 8 requires image is loaded first */
 		else if (option >= 2 && option <= 7) {
 			if (image == NULL)	 {
 				printf("No image to process!\n");
@@ -72,12 +70,11 @@ int main(void)
 						printf("Please input the file name to save: ");
 						scanf("%s", fname);
 						SaveImage(fname, image);
+						printf("\"%s\" was saved successfully!\n", fname);
 						break;
 					case 3:
-						printf("Please input motion blur amount: ");
-						scanf("%d", &motion_amount);
 						t0 = rdtsc();
-						image = MotionBlur(image, motion_amount);
+						image = MotionBlur(image, 3); // 3 is the default amount of blur
 						t1 = rdtsc();
 						printf("\"Motion Blur\" operation is done!\n"); 
 						printf("The number of clock cycles for MotionBlur is %llu\n", t1 - t0);
@@ -141,13 +138,26 @@ int main(void)
 
 /* Menu */
 void PrintMenu() {
-	printf("\n----------------------------\n");
-	printf(" 1: Load a PPM image\n");
-	printf(" 2: Save an image in PPM and JPEG format\n");
-	printf(" 3: Motion Blur\n");
-	printf(" 4: Sketch the edge of an image\n");
-	printf(" 5: Rotate and zoom an image\n");
-	printf(" 6: Motion Blur (Turbo Mode)\n");
-	printf(" 7: Edge Detection (Turbo Mode)\n");
-	printf("20: Exit\n");
+    printf("=========================================================\n");
+    printf("|               IMAGE PROCESSING MENU                   |\n");
+    printf("=========================================================\n");
+    printf("| Note: This program processes one image at a time. 	|\n");
+    printf("| * Load an image before processing.                    |\n");
+    printf("| * Remember to save the image after processing.        |\n");
+    printf("| * For loading and saving, enter name without suffix.  |\n");
+    printf("|   (e.g., for 'test.ppm', just enter 'test')           |\n");
+	printf("| * For option selection, enter the number only.        |\n");
+	printf("|   (e.g., for 'Exit', just enter '20')                 |\n");
+	printf("| * Last updated: 12/09/2023                            |\n");
+    printf("=========================================================\n");
+    printf("| Options:                                          	|\n");
+    printf("|  1: Load a PPM image                              	|\n");
+    printf("|  2: Save an image in PPM format          	            |\n");
+    printf("|  3: Motion Blur                                   	|\n");
+    printf("|  4: Sketch the edge of an image                   	|\n");
+    printf("|  5: Rotate and zoom an image                      	|\n");
+    printf("|  6: Motion Blur (Turbo Mode)                      	|\n");
+    printf("|  7: Edge Detection (Turbo Mode)                   	|\n");
+    printf("| 20: Exit                                          	|\n");
+    printf("=========================================================\n");
 }

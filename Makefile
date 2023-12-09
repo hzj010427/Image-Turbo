@@ -1,4 +1,5 @@
 # Makefile: Makefile for project1
+# Author: Zijie Huang
 
 # design names
 DESIGN = bin/PhotoLab bin/PhotoLabTest
@@ -6,34 +7,14 @@ DESIGN = bin/PhotoLab bin/PhotoLabTest
 #libs
 LIBS   = src/libFilter.a src/libFileIO.a
 
-CC     = gcc -mavx -mfma
+CC     = gcc -mavx -mfma -fopenmp
 DEBUG  = -DDEBUG -g
 CFLAGS = -Wall -std=c99
 LFLAGS = -Wall -lm
 AR     = ar rc
 RANLIB = ranlib
 
-IMAGES = pic/bw.ppm \
-         pic/negative.ppm \
-         pic/colorfilter.ppm \
-         pic/edge.ppm \
-         pic/hflip.ppm \
-         pic/shuffle.ppm \
-         pic/hmirror.ppm \
-         pic/border.ppm \
-         pic/normalize.ppm \
-         pic/rotate.ppm \
-         pic/posterize.ppm \
-         pic/blur.ppm \
-	 pic/crop.ppm \
-	 pic/brightnessandcontrast.ppm \
-	 pic/bigresize.ppm \
-	 pic/smallresize.ppm \
-	 pic/watermark.ppm \
-	 pic/test.ppm \
-
 all: bin/PhotoLab bin/PhotoLabTest
-
 
 ########### generate object files ###########
 
@@ -80,7 +61,7 @@ src/libFilter.a: src/DIPs.o src/Advanced.o src/kernel.o
 
 #target to generate PhotoLab
 bin/PhotoLab: src/PhotoLab.o src/FileIO.o src/Image.o src/libFilter.a
-	$(CC) $(LFLAGS) src/PhotoLab.o src/FileIO.o src/Image.o -Lsrc -lFilter -o bin/PhotoLab
+	$(CC) $(LFLAGS) src/PhotoLab.o src/FileIO.o src/Image.o -Lsrc -lFilter -o bin/PhotoLab 
 
 #target to generate test
 bin/PhotoLabTest: src/PhotoLab_DEBUG.o src/FileIO_DEBUG.o src/Image.o src/libFilter.a
@@ -88,4 +69,4 @@ bin/PhotoLabTest: src/PhotoLab_DEBUG.o src/FileIO_DEBUG.o src/Image.o src/libFil
 	
 #target to clean the directory
 clean:
-	rm -f src/*.o pic/*.jpg $(DESIGN) $(IMAGES) $(LIBS)
+	rm -f src/*.o output/*.ppm $(DESIGN) $(LIBS)

@@ -1,6 +1,6 @@
 /*********************************************************************/
 /* Updated by: Zijie Huang                                           */
-/* Date:   02/26/2023                                                */
+/* Date:   12/09/2023                                                */
 /*********************************************************************/
 
 #ifndef CONSTANTS_H_INCLUDED_
@@ -10,6 +10,7 @@
 
 /*** global definitions ***/
 #define PIC_DIR "../pic/"
+#define OUTPUT_DIR "../output/"
 #define SLEN    80      /* maximum length of file names and string*/
 #define ZOOM_FACTOR 2   /* Zooming factor for the zoom function */
 

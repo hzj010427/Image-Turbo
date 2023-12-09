@@ -121,5 +121,4 @@ Image *MotionBlur(Image *image, unsigned char BlurAmount)
 	}	
 	return image;
 }
- 
 /* EOF Advanced.c */

@@ -126,7 +126,7 @@ int SaveImage(const char *fname, const Image *image)
     strcpy(fname_tmp2, fname);
     strcat(fname_tmp2, ftype);
 
-    strcpy(fname_with_path, PIC_DIR);
+    strcpy(fname_with_path, OUTPUT_DIR);
     strcat(fname_with_path, fname_tmp2);
 
 	File = fopen(fname_with_path, "w");
