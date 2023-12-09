@@ -1,6 +1,8 @@
 /*********************************************************************/
 /* Updated by: Zijie Huang                                           */
 /* Date:   12/05/2023                                                */
+/* Updated by: Ningyan Zhang                                         */
+/* Date:   12/07/2023                                                */
 /*********************************************************************/
 
 #include "kernel.h"
@@ -24,16 +26,543 @@ static __inline__ unsigned long long rdtsc(void) {
 
 unsigned long long t0, t1, t2, t3, t4, t5;
 
-
-/* Edge detection optimized version */
-/* Image *Edge_Turbo(Image *image) {
-	assert(image);
-}
- */
 /* rotate and zoom the image optimized version */
 /* Image *Rotate_Turbo(Image *image) {
     assert(image);
 } */
+
+/* Edge detection optimized version */
+Image *Edge_Turbo(Image *image) {
+    /* Make sure the input pointer is valid */
+	assert(image);
+
+    int             i, j;
+    int HEIGHT = ImageHeight(image); // 2 * 139 + 4
+	int WIDTH = ImageWidth(image); // 16 * 29 + 20
+
+    int TMP_HEIGHT = 560; // 4 * 140
+    int TMP_WIDTH = 720; // 24 * 30
+
+    int RESULT_HEIGHT = 280; // 2 * 140
+    int RESULT_WIDTH = 480; // 16 * 30
+
+    double edgeR[HEIGHT * WIDTH];
+	double edgeG[HEIGHT * WIDTH];
+	double edgeB[HEIGHT * WIDTH];
+
+    double *tmpR = (double *)malloc(TMP_HEIGHT * TMP_WIDTH * sizeof(double));
+    double *tmpG = (double *)malloc(TMP_HEIGHT * TMP_WIDTH * sizeof(double));
+    double *tmpB = (double *)malloc(TMP_HEIGHT * TMP_WIDTH * sizeof(double));
+
+    double *tmpresultR = (double *)malloc(RESULT_HEIGHT * RESULT_WIDTH * sizeof(double));
+    double *tmpresultG = (double *)malloc(RESULT_HEIGHT * RESULT_WIDTH * sizeof(double));
+    double *tmpresultB = (double *)malloc(RESULT_HEIGHT * RESULT_WIDTH * sizeof(double));
+
+    double *resultR = (double *)malloc(RESULT_HEIGHT * RESULT_WIDTH * sizeof(double));
+    double *resultG = (double *)malloc(RESULT_HEIGHT * RESULT_WIDTH * sizeof(double));
+    double *resultB = (double *)malloc(RESULT_HEIGHT * RESULT_WIDTH * sizeof(double));
+
+    /* get blurR, blurG, blurB */
+	for (i = 0; i < HEIGHT; i++) {
+		for (j = 0; j < WIDTH; j++) {
+			edgeR[j + i * WIDTH] = GetPixelR(image, j, i); // 484 * 282
+			edgeG[j + i * WIDTH] = GetPixelG(image, j, i);
+			edgeB[j + i * WIDTH] = GetPixelB(image, j, i);
+		}
+	}
+
+    /* preprocess */
+    pre_process_edge(edgeR, tmpR);
+    pre_process_edge(edgeG, tmpG);
+    pre_process_edge(edgeB, tmpB);
+
+    for (i = 0; i < TMP_HEIGHT; i++) {
+        for (j = 0; j < TMP_WIDTH; j++) {
+        }
+    }
+
+    /* kernel */
+    kernel_edge(tmpR, tmpresultR);
+    kernel_edge(tmpG, tmpresultG);
+    kernel_edge(tmpB, tmpresultB);
+
+    /* postprocess */
+    post_process_edge(tmpresultR, resultR);
+    post_process_edge(tmpresultG, resultG);
+    post_process_edge(tmpresultB, resultB);
+
+    /* set the RGB */
+	for (i = 0; i < RESULT_HEIGHT; i++) {
+		for (j = 0; j < RESULT_WIDTH; j++) {
+            SetPixelR(image, j, i, (resultR[j + i * RESULT_WIDTH] > MAX_PIXEL) ? MAX_PIXEL: (resultR[j + i * RESULT_WIDTH] < 0) ? 0: resultR[j + i * RESULT_WIDTH]);
+			SetPixelG(image, j, i, (resultG[j + i * RESULT_WIDTH] > MAX_PIXEL) ? MAX_PIXEL: (resultG[j + i * RESULT_WIDTH] < 0) ? 0: resultG[j + i * RESULT_WIDTH]);
+			SetPixelB(image, j, i, (resultB[j + i * RESULT_WIDTH] > MAX_PIXEL) ? MAX_PIXEL: (resultB[j + i * RESULT_WIDTH] < 0) ? 0: resultB[j + i * RESULT_WIDTH]);
+		}
+	}
+
+    free(tmpR);
+    free(tmpG);
+    free(tmpB);
+    free(resultR);
+    free(resultG);
+    free(resultB);
+
+    return image;
+}
+
+/* Input: height: 282, width: 484 */
+/* Output: height: 560 width: 720 */
+/**
+ * 
+ * @param input The input image.
+ * @param output The output image.
+ */
+void pre_process_edge(double* input, double* output) {
+    __m256d ymm0, ymm1, ymm2, ymm3;
+    __m256d ymm4, ymm5, ymm6, ymm7;
+    __m256d ymm8, ymm9, ymm10, ymm11;
+    __m256d ymm12, ymm13, ymm14, ymm15;
+
+    for (int j = 0; j < 140; j++) {  // j from 0 to 279
+        for (int i = 0; i < 30; i++) { // i from 0 to 479
+            // initialization
+            ymm0 = _mm256_setzero_pd();  ymm1 = _mm256_setzero_pd();
+            ymm2 = _mm256_setzero_pd();  ymm3 = _mm256_setzero_pd();
+            ymm4 = _mm256_setzero_pd();  ymm5 = _mm256_setzero_pd();
+            ymm6 = _mm256_setzero_pd();  ymm7 = _mm256_setzero_pd();
+            ymm8 = _mm256_setzero_pd();  ymm9 = _mm256_setzero_pd();
+            ymm10 = _mm256_setzero_pd();  ymm11 = _mm256_setzero_pd();
+            ymm12 = _mm256_setzero_pd();  ymm13 = _mm256_setzero_pd();
+            ymm14 = _mm256_setzero_pd();  ymm15 = _mm256_setzero_pd();
+
+            // line: 0
+            ymm0 = _mm256_loadu_pd(&input[i * 16 + j * 2 * 484]);
+            ymm1 = _mm256_loadu_pd(&input[i * 16 + 4 + j * 2 * 484]);
+            ymm2 = _mm256_loadu_pd(&input[i * 16 + 8 + j * 2 * 484]);
+            ymm3 = _mm256_loadu_pd(&input[i * 16 + 12 + j * 2 * 484]);
+			
+            // line: 1
+            ymm8 = _mm256_loadu_pd(&input[i * 16 + (j * 2 + 1) * 484]);
+            ymm9 = _mm256_loadu_pd(&input[i * 16 + 4 + (j * 2 + 1) * 484]);
+            ymm10 = _mm256_loadu_pd(&input[i * 16 + 8 + (j * 2 + 1) * 484]);
+            ymm11 = _mm256_loadu_pd(&input[i * 16 + 12 + (j * 2 + 1) * 484]);
+			
+            // line: 0
+            ymm4 =  _mm256_shuffle_pd(ymm0, ymm1, 0xc);
+            ymm5 = _mm256_shuffle_pd(ymm2, ymm3, 0xc);
+            ymm6 = _mm256_permute2f128_pd(ymm4, ymm5, 0x20);
+            ymm7 = _mm256_permute2f128_pd(ymm4, ymm5, 0x30);
+			
+            // line: 1
+            ymm12 =  _mm256_shuffle_pd(ymm8, ymm9, 0xc);
+            ymm13 = _mm256_shuffle_pd(ymm10, ymm11, 0xc);
+            ymm14 = _mm256_permute2f128_pd(ymm12, ymm13, 0x20);
+            ymm15 = _mm256_permute2f128_pd(ymm12, ymm13, 0x30);
+			
+            // line: 0
+            _mm256_storeu_pd(&output[i * 24 + j * 4 * 720], ymm6);        // #1
+            _mm256_storeu_pd(&output[i * 24 + 12 + j * 4 * 720], ymm7);   // #4
+			
+            // line: 1
+            _mm256_storeu_pd(&output[i * 24 + (j * 4 + 1) * 720], ymm14);
+            _mm256_storeu_pd(&output[i * 24 + 12 + (j * 4 + 1) * 720], ymm15);
+
+            // line: 0
+            ymm4 = _mm256_shuffle_pd(ymm0, ymm1, 0x3);
+            ymm5 = _mm256_shuffle_pd(ymm2, ymm3, 0x3);
+            ymm6 = _mm256_permute2f128_pd(ymm4, ymm5, 0x20);
+            ymm7 = _mm256_permute2f128_pd(ymm4, ymm5, 0x30);
+
+            // line: 1
+            ymm12 = _mm256_shuffle_pd(ymm8, ymm9, 0x3);
+            ymm13 = _mm256_shuffle_pd(ymm10, ymm11, 0x3);
+            ymm14 = _mm256_permute2f128_pd(ymm12, ymm13, 0x20);
+            ymm15 = _mm256_permute2f128_pd(ymm12, ymm13, 0x30);
+
+            // line: 0
+            _mm256_storeu_pd(&output[i * 24 + 4 + j * 4 * 720], ymm6);   // #2
+            _mm256_storeu_pd(&output[i * 24 + 8 + j * 4 * 720], ymm7);   // #3
+
+            // line: 1
+            _mm256_storeu_pd(&output[i * 24 + 4 + (j * 4 + 1) * 720], ymm14);
+            _mm256_storeu_pd(&output[i * 24 + 8 + (j * 4 + 1) * 720], ymm15);
+
+            // line: 0
+            ymm0 = _mm256_loadu_pd(&input[i * 16 + 16 + j * 2 * 484]);
+
+            ymm4 =  _mm256_shuffle_pd(ymm1, ymm2, 0xc);
+            ymm5 = _mm256_shuffle_pd(ymm3, ymm0, 0xc);
+            ymm6 = _mm256_permute2f128_pd(ymm4, ymm5, 0x20);
+
+            // line: 1
+            ymm8 = _mm256_loadu_pd(&input[i * 16 + 16 + (j * 2 + 1) * 484]);
+
+            ymm12 =  _mm256_shuffle_pd(ymm9, ymm10, 0xc);
+            ymm13 = _mm256_shuffle_pd(ymm11, ymm8, 0xc);
+            ymm14 = _mm256_permute2f128_pd(ymm12, ymm13, 0x20);
+
+            // line: 0
+            ymm4 = _mm256_shuffle_pd(ymm1, ymm2, 0x3);
+            ymm5 = _mm256_shuffle_pd(ymm3, ymm0, 0x3);
+            ymm7 = _mm256_permute2f128_pd(ymm4, ymm5, 0x20);
+            _mm256_storeu_pd(&output[i * 24 + 16 + j * 4 * 720], ymm6);
+            _mm256_storeu_pd(&output[i * 24 + 20 + j * 4 * 720], ymm7);
+
+            // line: 1
+            ymm12 = _mm256_shuffle_pd(ymm9, ymm10, 0x3);
+            ymm13 = _mm256_shuffle_pd(ymm11, ymm8, 0x3);
+            ymm15 = _mm256_permute2f128_pd(ymm12, ymm13, 0x20);
+            _mm256_storeu_pd(&output[i * 24 + 16 + (j * 4 + 1) * 720], ymm14);
+            _mm256_storeu_pd(&output[i * 24 + 20 + (j * 4 + 1) * 720], ymm15);
+
+            // line: 2
+            ymm0 = _mm256_loadu_pd(&input[i * 16 + (j * 2 + 2) * 484]);
+            ymm1 = _mm256_loadu_pd(&input[i * 16 + 4 + (j * 2 + 2) * 484]);
+            ymm2 = _mm256_loadu_pd(&input[i * 16 + 8 + (j * 2 + 2) * 484]);
+            ymm3 = _mm256_loadu_pd(&input[i * 16 + 12 + (j * 2 + 2) * 484]);
+	
+            // line: 3
+            ymm8 = _mm256_loadu_pd(&input[i * 16 + (j * 2 + 3) * 484]); 
+            ymm9 = _mm256_loadu_pd(&input[i * 16 + 4 + (j * 2 + 3) * 484]);
+            ymm10 = _mm256_loadu_pd(&input[i * 16 + 8 + (j * 2 + 3) * 484]);
+            ymm11 = _mm256_loadu_pd(&input[i * 16 + 12 + (j * 2 + 3) * 484]);
+			
+            // line: 2
+            ymm4 =  _mm256_shuffle_pd(ymm0, ymm1, 0xc);
+            ymm5 = _mm256_shuffle_pd(ymm2, ymm3, 0xc);
+            ymm6 = _mm256_permute2f128_pd(ymm4, ymm5, 0x20);
+            ymm7 = _mm256_permute2f128_pd(ymm4, ymm5, 0x30);
+			
+            // line: 3
+            ymm12 =  _mm256_shuffle_pd(ymm8, ymm9, 0xc);
+            ymm13 = _mm256_shuffle_pd(ymm10, ymm11, 0xc);
+            ymm14 = _mm256_permute2f128_pd(ymm12, ymm13, 0x20);
+            ymm15 = _mm256_permute2f128_pd(ymm12, ymm13, 0x30);
+			
+            // line: 2
+            _mm256_storeu_pd(&output[i * 24 + (j * 4 + 2) * 720], ymm6);
+            _mm256_storeu_pd(&output[i * 24 + 12 + (j * 4 + 2) * 720], ymm7);
+			
+            // line: 3
+            _mm256_storeu_pd(&output[i * 24 + (j * 4 + 3) * 720], ymm14);
+            _mm256_storeu_pd(&output[i * 24 + 12 + (j * 4 + 3) * 720], ymm15);
+
+            // line: 2
+            ymm4 = _mm256_shuffle_pd(ymm0, ymm1, 0x3);
+            ymm5 = _mm256_shuffle_pd(ymm2, ymm3, 0x3);
+            ymm6 = _mm256_permute2f128_pd(ymm4, ymm5, 0x20);
+            ymm7 = _mm256_permute2f128_pd(ymm4, ymm5, 0x30);
+
+            // line: 3
+            ymm12 = _mm256_shuffle_pd(ymm8, ymm9, 0x3);
+            ymm13 = _mm256_shuffle_pd(ymm10, ymm11, 0x3);
+            ymm14 = _mm256_permute2f128_pd(ymm12, ymm13, 0x20);
+            ymm15 = _mm256_permute2f128_pd(ymm12, ymm13, 0x30);
+
+            // line: 2
+            _mm256_storeu_pd(&output[i * 24 + 4 + (j * 4 + 2) * 720], ymm6);
+            _mm256_storeu_pd(&output[i * 24 + 8 + (j * 4 + 2) * 720], ymm7);
+
+            // line: 3
+            _mm256_storeu_pd(&output[i * 24 + 4 + (j * 4 + 3) * 720], ymm14);
+            _mm256_storeu_pd(&output[i * 24 + 8 + (j * 4 + 3) * 720], ymm15);
+
+            // line: 2
+            ymm0 = _mm256_loadu_pd(&input[i * 16 + 16 + (j * 2 + 2) * 484]);
+
+            ymm4 =  _mm256_shuffle_pd(ymm1, ymm2, 0xc);
+            ymm5 = _mm256_shuffle_pd(ymm3, ymm0, 0xc);
+            ymm6 = _mm256_permute2f128_pd(ymm4, ymm5, 0x20);
+
+            // line: 3
+            ymm8 = _mm256_loadu_pd(&input[i * 16 + 16 + (j * 2 + 3) * 484]);
+
+            ymm12 =  _mm256_shuffle_pd(ymm9, ymm10, 0xc);
+            ymm13 = _mm256_shuffle_pd(ymm11, ymm8, 0xc);
+            ymm14 = _mm256_permute2f128_pd(ymm12, ymm13, 0x20);
+
+            // line: 2
+            ymm4 = _mm256_shuffle_pd(ymm1, ymm2, 0x3);
+            ymm5 = _mm256_shuffle_pd(ymm3, ymm0, 0x3);
+            ymm7 = _mm256_permute2f128_pd(ymm4, ymm5, 0x20);
+            _mm256_storeu_pd(&output[i * 24 + 16 + (j * 4 + 2) * 720], ymm6);
+            _mm256_storeu_pd(&output[i * 24 + 20 + (j * 4 + 2) * 720], ymm7);
+
+            // line: 3
+            ymm12 = _mm256_shuffle_pd(ymm9, ymm10, 0x3);
+            ymm13 = _mm256_shuffle_pd(ymm11, ymm8, 0x3);
+            ymm15 = _mm256_permute2f128_pd(ymm12, ymm13, 0x20);
+            _mm256_storeu_pd(&output[i * 24 + 16 + (j * 4 + 3) * 720], ymm14);
+            _mm256_storeu_pd(&output[i * 24 + 20 + (j * 4 + 3) * 720], ymm15);
+        }
+    }
+}
+
+/**
+ * @param input The input image.
+ * @param output The output image.
+ */
+void kernel_edge(double* input, double* output) {
+    __m256d ymm0, ymm1, ymm2, ymm3, ymm4, ymm5, ymm6, ymm7;
+    __m256d ymm8, ymm9, ymm10, ymm11, ymm12, ymm13;
+
+    ymm0 = _mm256_setzero_pd();  ymm1 = _mm256_setzero_pd();
+    ymm2 = _mm256_setzero_pd();  ymm3 = _mm256_setzero_pd();
+    ymm4 = _mm256_setzero_pd();  ymm5 = _mm256_setzero_pd();
+    ymm6 = _mm256_setzero_pd();  ymm7 = _mm256_setzero_pd();
+    ymm8 = _mm256_setzero_pd();  ymm9 = _mm256_setzero_pd();
+    ymm10 = _mm256_setzero_pd();  ymm11 = _mm256_setzero_pd();
+    ymm12 = _mm256_setzero_pd();  ymm13 = _mm256_setzero_pd();
+
+    ymm0 = _mm256_set_pd((double) -1, (double) -1, (double) -1, (double) -1);
+    ymm1 = _mm256_set_pd((double) 8, (double) 8, (double) 8, (double) 8);
+
+    /* #pragma omp parallel for num_threads(4) // create 4 threads */
+    for (int j = 0; j < 140; j++) {  // 140 rows of block
+        for (int i = 0; i < 30; i++) { // 30 colums of block
+
+        ymm2 = _mm256_setzero_pd();  ymm3 = _mm256_setzero_pd();
+        ymm4 = _mm256_setzero_pd();  ymm5 = _mm256_setzero_pd();
+        ymm6 = _mm256_setzero_pd();  ymm7 = _mm256_setzero_pd();
+        ymm8 = _mm256_setzero_pd();  ymm9 = _mm256_setzero_pd();
+        ymm10 = _mm256_setzero_pd();  ymm11 = _mm256_setzero_pd();
+        ymm12 = _mm256_setzero_pd();  ymm13 = _mm256_setzero_pd();
+
+        ///////////////////////////////////////////////// line 1, each load deal with 1 line: line 1
+        ymm2 = _mm256_loadu_pd(&input[i * 24 + j * 4 * 720]);         // input 0
+        ymm3 = _mm256_loadu_pd(&input[i * 24 + 4 + j * 4 * 720]);     // input 1
+        ymm4 = _mm256_loadu_pd(&input[i * 24 + 8 + j * 4 * 720]);     // input 2
+        ymm5 = _mm256_loadu_pd(&input[i * 24 + 12 + j * 4 * 720]);    // input 3
+
+        // add upper left (first output row)
+        ymm6 = _mm256_fmadd_pd(ymm2, ymm0, ymm6);
+        ymm7 = _mm256_fmadd_pd(ymm3, ymm0, ymm7);
+        ymm8 = _mm256_fmadd_pd(ymm4, ymm0, ymm8);
+        ymm9 = _mm256_fmadd_pd(ymm5, ymm0, ymm9);
+
+        ymm2 = _mm256_loadu_pd(&input[i * 24 + 16 + j * 4 * 720]);    // input 4
+
+        // add directly above (first output row)
+        ymm6 = _mm256_fmadd_pd(ymm3, ymm0, ymm6);
+        ymm7 = _mm256_fmadd_pd(ymm4, ymm0, ymm7);
+        ymm8 = _mm256_fmadd_pd(ymm5, ymm0, ymm8);
+        ymm9 = _mm256_fmadd_pd(ymm2, ymm0, ymm9);
+
+        ymm3 = _mm256_loadu_pd(&input[i * 24 + 20 + j * 4 * 720]);    // input 5
+
+        // add upper right (first output row)
+        ymm6 = _mm256_fmadd_pd(ymm4, ymm0, ymm6);
+        ymm7 = _mm256_fmadd_pd(ymm5, ymm0, ymm7);
+        ymm8 = _mm256_fmadd_pd(ymm2, ymm0, ymm8);
+        ymm9 = _mm256_fmadd_pd(ymm3, ymm0, ymm9);
+
+        ////////////////////////////////////////////// now is line 2, each load deal with 2 lines: line 1 & line2
+        ymm2 = _mm256_loadu_pd(&input[i * 24 + (j * 4 + 1) * 720]);         // input 6
+        ymm3 = _mm256_loadu_pd(&input[i * 24 + 4 + (j * 4 + 1) * 720]);     // input 7
+        ymm4 = _mm256_loadu_pd(&input[i * 24 + 8 + (j * 4 + 1) * 720]);     // input 8
+        ymm5 = _mm256_loadu_pd(&input[i * 24 + 12 + (j * 4 + 1) * 720]);    // input 9
+
+        // add left (first output row)
+        ymm6 = _mm256_fmadd_pd(ymm2, ymm0, ymm6);
+        ymm7 = _mm256_fmadd_pd(ymm3, ymm0, ymm7);
+        ymm8 = _mm256_fmadd_pd(ymm4, ymm0, ymm8);
+        ymm9 = _mm256_fmadd_pd(ymm5, ymm0, ymm9);
+
+        // add upper left (second output row)
+        ymm10 = _mm256_fmadd_pd(ymm2, ymm0, ymm10);
+        ymm11 = _mm256_fmadd_pd(ymm3, ymm0, ymm11);
+        ymm12 = _mm256_fmadd_pd(ymm4, ymm0, ymm12);
+        ymm13 = _mm256_fmadd_pd(ymm5, ymm0, ymm13);
+
+        ymm2 = _mm256_loadu_pd(&input[i * 24 + 16 + (j * 4 + 1) * 720]);    // input 10
+
+        // MUL 8 (first output row)
+        ymm6 = _mm256_fmadd_pd(ymm3, ymm1, ymm6);
+        ymm7 = _mm256_fmadd_pd(ymm4, ymm1, ymm7);
+        ymm8 = _mm256_fmadd_pd(ymm5, ymm1, ymm8);
+        ymm9 = _mm256_fmadd_pd(ymm2, ymm1, ymm9);
+
+        // add directly above (second output row)
+        ymm10 = _mm256_fmadd_pd(ymm3, ymm0, ymm10);
+        ymm11 = _mm256_fmadd_pd(ymm4, ymm0, ymm11);
+        ymm12 = _mm256_fmadd_pd(ymm5, ymm0, ymm12);
+        ymm13 = _mm256_fmadd_pd(ymm2, ymm0, ymm13);
+
+        ymm3 = _mm256_loadu_pd(&input[i * 24 + 20 + (j * 4 + 1) * 720]);   // input 11
+
+        // add right (first output row)
+        ymm6 = _mm256_fmadd_pd(ymm4, ymm0, ymm6);
+        ymm7 = _mm256_fmadd_pd(ymm5, ymm0, ymm7);
+        ymm8 = _mm256_fmadd_pd(ymm2, ymm0, ymm8);
+        ymm9 = _mm256_fmadd_pd(ymm3, ymm0, ymm9);
+
+        // add upper right (second output row)
+        ymm10 = _mm256_fmadd_pd(ymm4, ymm0, ymm10);
+        ymm11 = _mm256_fmadd_pd(ymm5, ymm0, ymm11);
+        ymm12 = _mm256_fmadd_pd(ymm2, ymm0, ymm12);
+        ymm13 = _mm256_fmadd_pd(ymm3, ymm0, ymm13);
+
+        ////////////////////////////////////////////// now is line 3, each load deal with 2 lines: line 1 & line 2
+        ymm2 = _mm256_loadu_pd(&input[i * 24 + (j * 4 + 2) * 720]);         // input 12
+        ymm3 = _mm256_loadu_pd(&input[i * 24 + 4 + (j * 4 + 2) * 720]);     // input 13
+        ymm4 = _mm256_loadu_pd(&input[i * 24 + 8 + (j * 4 + 2) * 720]);     // input 14
+        ymm5 = _mm256_loadu_pd(&input[i * 24 + 12 + (j * 4 + 2) * 720]);    // input 15  
+
+        // add lower left (first output row)
+        ymm6 = _mm256_fmadd_pd(ymm2, ymm0, ymm6);
+        ymm7 = _mm256_fmadd_pd(ymm3, ymm0, ymm7);
+        ymm8 = _mm256_fmadd_pd(ymm4, ymm0, ymm8);
+        ymm9 = _mm256_fmadd_pd(ymm5, ymm0, ymm9);
+
+        // add left (second output row)
+        ymm10 = _mm256_fmadd_pd(ymm2, ymm0, ymm10);
+        ymm11 = _mm256_fmadd_pd(ymm3, ymm0, ymm11);
+        ymm12 = _mm256_fmadd_pd(ymm4, ymm0, ymm12);
+        ymm13 = _mm256_fmadd_pd(ymm5, ymm0, ymm13);
+
+        ymm2 = _mm256_loadu_pd(&input[i * 24 + 16 + (j * 4 + 2) * 720]);    // input 16
+
+        // add directly below (first output row)
+        ymm6 = _mm256_fmadd_pd(ymm3, ymm0, ymm6);
+        ymm7 = _mm256_fmadd_pd(ymm4, ymm0, ymm7);
+        ymm8 = _mm256_fmadd_pd(ymm5, ymm0, ymm8);
+        ymm9 = _mm256_fmadd_pd(ymm2, ymm0, ymm9);
+
+        // MUL 8 (second output row)
+        ymm10 = _mm256_fmadd_pd(ymm3, ymm1, ymm10);
+        ymm11 = _mm256_fmadd_pd(ymm4, ymm1, ymm11);
+        ymm12 = _mm256_fmadd_pd(ymm5, ymm1, ymm12);
+        ymm13 = _mm256_fmadd_pd(ymm2, ymm1, ymm13);
+
+        ymm3 = _mm256_loadu_pd(&input[i * 24 + 20 + (j * 4 + 2) * 720]);   // input 17
+
+        // add lower right (first output row)
+        ymm6 = _mm256_fmadd_pd(ymm4, ymm0, ymm6);
+        ymm7 = _mm256_fmadd_pd(ymm5, ymm0, ymm7);
+        ymm8 = _mm256_fmadd_pd(ymm2, ymm0, ymm8);
+        ymm9 = _mm256_fmadd_pd(ymm3, ymm0, ymm9);
+
+        // add right (second output row)
+        ymm10 = _mm256_fmadd_pd(ymm4, ymm0, ymm10);
+        ymm11 = _mm256_fmadd_pd(ymm5, ymm0, ymm11);
+        ymm12 = _mm256_fmadd_pd(ymm2, ymm0, ymm12);
+        ymm13 = _mm256_fmadd_pd(ymm3, ymm0, ymm13);
+
+
+        ///////////////////////////////////////////////// line 4, each load deal with 1 line: line 2
+        ymm2 = _mm256_loadu_pd(&input[i * 24 + (j * 4 + 3) * 720]);         // input 18
+        ymm3 = _mm256_loadu_pd(&input[i * 24 + 4 + (j * 4 + 3) * 720]);     // input 19
+        ymm4 = _mm256_loadu_pd(&input[i * 24 + 8 + (j * 4 + 3) * 720]);     // input 20
+        ymm5 = _mm256_loadu_pd(&input[i * 24 + 12 + (j * 4 + 3) * 720]);    // input 21
+
+        // add lower left (second output row)
+        ymm10 = _mm256_fmadd_pd(ymm2, ymm0, ymm10);
+        ymm11 = _mm256_fmadd_pd(ymm3, ymm0, ymm11);
+        ymm12 = _mm256_fmadd_pd(ymm4, ymm0, ymm12);
+        ymm13 = _mm256_fmadd_pd(ymm5, ymm0, ymm13);
+
+        ymm2 = _mm256_loadu_pd(&input[i * 24 + 16 + (j * 4 + 3) * 720]);    // input 22
+
+        // add directly below (second output row)
+        ymm10 = _mm256_fmadd_pd(ymm3, ymm0, ymm10);
+        ymm11 = _mm256_fmadd_pd(ymm4, ymm0, ymm11);
+        ymm12 = _mm256_fmadd_pd(ymm5, ymm0, ymm12);
+        ymm13 = _mm256_fmadd_pd(ymm2, ymm0, ymm13);
+
+        ymm3 = _mm256_loadu_pd(&input[i * 24 + 20 + (j * 4 + 3) * 720]);    // input 23
+
+        // add lower right (second output row)
+        ymm10 = _mm256_fmadd_pd(ymm4, ymm0, ymm10);
+        ymm11 = _mm256_fmadd_pd(ymm5, ymm0, ymm11);
+        ymm12 = _mm256_fmadd_pd(ymm2, ymm0, ymm12);
+        ymm13 = _mm256_fmadd_pd(ymm3, ymm0, ymm13);
+
+        ////////////////////////////////////////////// done
+        /* store to result */
+        _mm256_storeu_pd(&output[i * 16 + j * 2 * 480], ymm6);
+        _mm256_storeu_pd(&output[i * 16 + 4 + j * 2 * 480], ymm7);
+        _mm256_storeu_pd(&output[i * 16 + 8 + j * 2 * 480], ymm8);
+        _mm256_storeu_pd(&output[i * 16 + 12 + j * 2 * 480], ymm9);
+        _mm256_storeu_pd(&output[i * 16 + (j * 2 + 1) * 480], ymm10);
+        _mm256_storeu_pd(&output[i * 16 + 4 + (j * 2 + 1) * 480], ymm11);
+        _mm256_storeu_pd(&output[i * 16 + 8 + (j * 2 + 1) * 480], ymm12);
+        _mm256_storeu_pd(&output[i * 16 + 12 + (j * 2 + 1) * 480], ymm13);
+
+        }
+    }
+} 
+
+/**
+ * @param input The input image.
+ * @param output The output image.
+ */
+void post_process_edge(double* input, double* output) {
+    __m256d ymm0, ymm1, ymm2, ymm3;
+    __m256d ymm4, ymm5, ymm6, ymm7;
+    __m256d ymm8, ymm9, ymm10, ymm11;
+    __m256d ymm12, ymm13, ymm14, ymm15;
+
+    for (int j = 0; j < 140; j++) {
+        for (int i = 0; i < 30; i++) {
+            ymm0 = _mm256_setzero_pd();  ymm1 = _mm256_setzero_pd();
+            ymm2 = _mm256_setzero_pd();  ymm3 = _mm256_setzero_pd();
+            ymm4 = _mm256_setzero_pd();  ymm5 = _mm256_setzero_pd();
+            ymm6 = _mm256_setzero_pd();  ymm7 = _mm256_setzero_pd();
+            ymm8 = _mm256_setzero_pd();  ymm9 = _mm256_setzero_pd();
+            ymm10 = _mm256_setzero_pd();  ymm11 = _mm256_setzero_pd();
+            ymm12 = _mm256_setzero_pd();  ymm13 = _mm256_setzero_pd();
+            ymm14 = _mm256_setzero_pd();  ymm15 = _mm256_setzero_pd();
+
+            // line: 1
+            /* ymm0 = _mm256_loadu_pd(&input[i * 16][j * 2]); */
+            ymm0 = _mm256_loadu_pd(&input[i * 16 + j * 2 * 480]);
+            ymm1 = _mm256_loadu_pd(&input[i * 16 + 4 + j * 2 * 480]);
+            ymm2 = _mm256_loadu_pd(&input[i * 16 + 8 + j * 2 * 480]);
+            ymm3 = _mm256_loadu_pd(&input[i * 16 + 12 + j * 2 * 480]);
+
+            // line: 2
+            ymm8 = _mm256_loadu_pd(&input[i * 16 + (j * 2 + 1) * 480]);
+            ymm9 = _mm256_loadu_pd(&input[i * 16 + 4 + (j * 2 + 1) * 480]);
+            ymm10 = _mm256_loadu_pd(&input[i * 16 + 8 + (j * 2 + 1) * 480]);
+            ymm11 = _mm256_loadu_pd(&input[i * 16 + 12 + (j * 2 + 1) * 480]);
+
+            // line: 1
+            ymm4 = _mm256_shuffle_pd(ymm0, ymm1, 0xc); // r21, r22, r33, r34
+            ymm5 = _mm256_shuffle_pd(ymm2, ymm3, 0xc); // r23, r24, r35, r36
+            ymm6 = _mm256_permute2f128_pd(ymm4, ymm5, 0x20); // r21, r22, r23, r24      #1
+            ymm7 = _mm256_permute2f128_pd(ymm4, ymm5, 0x30); // r33, r34, r35, r36      #4
+
+            _mm256_storeu_pd(&output[i * 16 + j * 2 * 480], ymm6);
+            _mm256_storeu_pd(&output[i * 16 + 12 + j * 2 * 480], ymm7);
+
+            // line: 2
+            ymm12 = _mm256_shuffle_pd(ymm8, ymm9, 0xc);
+            ymm13 = _mm256_shuffle_pd(ymm10, ymm11, 0xc);
+            ymm14 = _mm256_permute2f128_pd(ymm12, ymm13, 0x20); //  #1
+            ymm15 = _mm256_permute2f128_pd(ymm12, ymm13, 0x30); //  #4
+            _mm256_storeu_pd(&output[i * 16 + (j * 2 + 1) * 480], ymm14);
+            _mm256_storeu_pd(&output[i * 16 + 12 + (j * 2 + 1) * 480], ymm15);
+
+            // line: 1
+            ymm4 = _mm256_shuffle_pd(ymm0, ymm1, 0x3); // r25, r26, r29, r30
+            ymm5 = _mm256_shuffle_pd(ymm2, ymm3, 0x3); // r27, r28, r31, r32
+            ymm6 = _mm256_permute2f128_pd(ymm4, ymm5, 0x20); // r25, r26, r27, r28      #2
+            ymm7 = _mm256_permute2f128_pd(ymm4, ymm5, 0x30); // r29, r30, r31, r32      #3
+
+            _mm256_storeu_pd(&output[i * 16 + 4 + j * 2 * 480], ymm6);
+            _mm256_storeu_pd(&output[i * 16 + 8 + j * 2 * 480], ymm7);
+
+            // line: 2
+            ymm12 = _mm256_shuffle_pd(ymm8, ymm9, 0x3);
+            ymm13 = _mm256_shuffle_pd(ymm10, ymm11, 0x3);
+            ymm14 = _mm256_permute2f128_pd(ymm12, ymm13, 0x20); //  #2
+            ymm15 = _mm256_permute2f128_pd(ymm12, ymm13, 0x30); //  #3
+
+            _mm256_storeu_pd(&output[i * 16 + 4 + (j * 2 + 1) * 480], ymm14);
+            _mm256_storeu_pd(&output[i * 16 + 8 + (j * 2 + 1) * 480], ymm15);
+        }
+    }
+}
 
 /**
  * @brief This optimized function adds motion blur to an image.
@@ -232,14 +761,9 @@ Image *MotionBlur_Turbo(Image *image) {
     /****** loop peeling END ******/
 
     /****** kernel blur START ******/
-    t0 = rdtsc();
     kernel_blur(blurR, resultR, TOTAL_PIXELS, 16, TOTAL_PIXELS - 24, 40);
-    t1 = rdtsc();
     kernel_blur(blurG, resultG, TOTAL_PIXELS, 16, TOTAL_PIXELS - 24, 40);
     kernel_blur(blurB, resultB, TOTAL_PIXELS, 16, TOTAL_PIXELS - 24, 40);
-
-    /* print the performance of kernel_blur */
-    /* printf("The performance of kernel_blur is %lf, with %d pixels\n", (2.0*TOTAL_PIXELS)/((double)(t1-t0)*MAX_FREQ/BASE_FREQ), TOTAL_PIXELS); */
     /****** kernel blur END ******/
 
     /****** loop peeling START ******/

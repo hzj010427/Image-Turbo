@@ -126,4 +126,3 @@ unsigned int ImageHeight(const Image *image) {
 
 	return image->H;
 }
-

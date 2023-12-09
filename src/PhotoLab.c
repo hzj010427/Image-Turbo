@@ -23,7 +23,7 @@ static __inline__ unsigned long long rdtsc(void) {
   return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
 }
 
-unsigned long long t0, t1, t2, t3;
+unsigned long long t0, t1, t2, t3, t4, t5, t6, t7;
 
 /* print a menu */
 void PrintMenu();
@@ -61,7 +61,7 @@ int main(void)
 		}
 
 		/* menu item 2 - 18 requires image is loaded first */
-		else if (option >= 2 && option <= 6) {
+		else if (option >= 2 && option <= 7) {
 			if (image == NULL)	 {
 				printf("No image to process!\n");
 			}
@@ -83,8 +83,12 @@ int main(void)
 						printf("The number of clock cycles for MotionBlur is %llu\n", t1 - t0);
 						break;
 					case 4:
+						t4 = rdtsc();
 						image = Edge(image);
+						t5 = rdtsc();
 						printf("\"Edge\" operation is done!\n");
+						printf("The number of clock cycles for Edge is %llu\n", t5 - t4);
+						break;
 					case 5:
 						printf("Enter the angle of rotation:");
 						scanf("%lf", &Angle);
@@ -104,6 +108,14 @@ int main(void)
 						t3 = rdtsc();
 						printf("\"Motion Blur (Turbo)\" operation is done!\n");
 						printf("The number of clock cycles for MotionBlur_Turbo is %llu\n", t3 - t2);
+						break;
+					case 7:
+						t6 = rdtsc();
+						image = Edge_Turbo(image);
+						t7 = rdtsc();
+						printf("\"Edge Detection (Turbo)\" operation is done!\n");
+						printf("The number of clock cycles for Edge_Turbo is %llu\n", t7 - t6);
+						break;
 					default:
 						break;
 				}
@@ -136,5 +148,6 @@ void PrintMenu() {
 	printf(" 4: Sketch the edge of an image\n");
 	printf(" 5: Rotate and zoom an image\n");
 	printf(" 6: Motion Blur (Turbo Mode)\n");
+	printf(" 7: Edge Detection (Turbo Mode)\n");
 	printf("20: Exit\n");
 }
