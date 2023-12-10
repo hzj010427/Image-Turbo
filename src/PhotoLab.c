@@ -23,7 +23,7 @@ static __inline__ unsigned long long rdtsc(void) {
   return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
 }
 
-unsigned long long t0, t1, t2, t3, t4, t5, t6, t7;
+unsigned long long t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11;
 
 /* print a menu */
 void PrintMenu();
@@ -59,7 +59,7 @@ int main(void)
 		}
 
 		/* menu item 2 - 8 requires image is loaded first */
-		else if (option >= 2 && option <= 7) {
+		else if (option >= 2 && option <= 8) {
 			if (image == NULL)	 {
 				printf("No image to process!\n");
 			}
@@ -95,8 +95,11 @@ int main(void)
 						scanf("%d", &CenterX);
 						printf("Enter the Y-axis coordinate of the center of rotation:");
 						scanf("%d", &CenterY);
+						t8 = rdtsc();
 						image = Rotate(image, Angle, ScaleFactor, CenterX, CenterY);
+						t9 = rdtsc();
 						printf("\"Rotate\" operation is done!\n");
+						printf("The number of clock cycles for Rotate is %llu\n", t9 - t8);
 						break;
 					case 6:
 						printf("The blur amount in turbo mode is set to 3\n");
@@ -112,6 +115,21 @@ int main(void)
 						t7 = rdtsc();
 						printf("\"Edge Detection (Turbo)\" operation is done!\n");
 						printf("The number of clock cycles for Edge_Turbo is %llu\n", t7 - t6);
+						break;
+					case 8:
+						printf("Enter the angle of rotation:");
+						scanf("%lf", &Angle);
+						printf("Enter the scale of zooming:");
+						scanf("%lf", &ScaleFactor);
+						printf("Enter the X-axis coordinate of the center of rotation:");
+						scanf("%d", &CenterX);
+						printf("Enter the Y-axis coordinate of the center of rotation:");
+						scanf("%d", &CenterY);
+						t10 = rdtsc();
+						image = Rotate_Turbo(image, Angle, ScaleFactor, CenterX, CenterY);
+						t11 = rdtsc();
+						printf("\"Rotate (Turbo)\" operation is done!\n");
+						printf("The number of clock cycles for Rotate_Turbo is %llu\n", t11 - t10);
 						break;
 					default:
 						break;
@@ -158,6 +176,7 @@ void PrintMenu() {
     printf("|  5: Rotate and zoom an image                      	|\n");
     printf("|  6: Motion Blur (Turbo Mode)                      	|\n");
     printf("|  7: Edge Detection (Turbo Mode)                   	|\n");
+	printf("|  8: Rotate and zoom (Turbo Mode)                   	|\n");
     printf("| 20: Exit                                          	|\n");
     printf("=========================================================\n");
 }
