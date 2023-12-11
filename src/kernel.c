@@ -3,6 +3,14 @@
 /* Date:   12/05/2023                                                */
 /* Updated by: Ningyan Zhang                                         */
 /* Date:   12/07/2023                                                */
+/* Updated by: Zijie Huang                                           */
+/* Date:   12/09/2023                                                */
+/* Updated by: Ningyan Zhang                                         */
+/* Date:   12/09/2023                                                */
+/* Updated by: Yueze Cao                                             */
+/* Date:   12/09/2023                                                */
+/* Updated by: Zijie Huang                                           */
+/* Date:   12/10/2023                                                */
 /*********************************************************************/
 
 #include "kernel.h"
@@ -17,520 +25,90 @@
 #include <immintrin.h>
 #include <math.h>
 
-/*** used for performance test ***/
-static __inline__ unsigned long long rdtsc(void) {
-  unsigned hi, lo;
-  __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
-  return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
-}
-
-unsigned long long t0, t1, t2, t3, t4, t5;
-
-/* rotate and zoom the image optimized version */
+/**
+ * @brief The optimized function for rotate and zoom the image.
+ * 
+ * The total number of threads is 8 when getting and setting the RGB.
+ * 
+ * @param image The input image.
+ * @param Angle The angle to rotate.
+ * @param ScaleFactor The scale factor to zoom.
+ * @param CenterX The x coordinate of the center.
+ * @param CenterY The y coordinate of the center.
+ * @return The image after rotating and zooming.
+ */
 Image *Rotate_Turbo(Image *image, double Angle, double ScaleFactor, int CenterX, int CenterY)
 {
 	/* Make sure the input pointer is valid */
 	assert(image);
-
-    printf("check 1\n");
-	int HEIGHT = ImageHeight(image);
+    int HEIGHT = ImageHeight(image);
 	int WIDTH = ImageWidth(image);
-	double *RotatedR = (double *)malloc(WIDTH * HEIGHT * sizeof(double));
-    double *RotatedG = (double *)malloc(WIDTH * HEIGHT * sizeof(double));
-    double *RotatedB = (double *)malloc(WIDTH * HEIGHT * sizeof(double));
 
-	// Define transformation parameters
+    double *OriginalX = (double *)malloc(WIDTH * HEIGHT * sizeof(double));
+    double *OriginalY = (double *)malloc(WIDTH * HEIGHT * sizeof(double));
+    double *RotatedX = (double *)malloc(WIDTH * HEIGHT * sizeof(double));
+    double *RotatedY = (double *)malloc(WIDTH * HEIGHT * sizeof(double));
+    double RotatedR[WIDTH][HEIGHT];
+    double RotatedG[WIDTH][HEIGHT];
+    double RotatedB[WIDTH][HEIGHT];
+
+    // Define transformation parameters
 	const double pi = 3.14159265358979323846;
 	double Radian;
-	double ScaleX, ScaleY;
 	double M[4];
 
 	// Set rotation and scaling parameters
 	Radian = -Angle / 360.0 * 2 * pi;
-	ScaleX = ScaleFactor;
-	ScaleY = ScaleFactor;
-    M[0] = cos(Radian) / ScaleX;
-	M[1] = -sin(Radian) / ScaleX;
-	M[2] = sin(Radian) / ScaleY;
-	M[3] = cos(Radian) / ScaleY;
-
-    printf("check 2\n");
-	// Rotate the image using the kernel function
-    kernel_rotate_R(image, M, CenterX, CenterY, HEIGHT, WIDTH, RotatedR);
-    kernel_rotate_G(image, M, CenterX, CenterY, HEIGHT, WIDTH, RotatedG);
-    kernel_rotate_B(image, M, CenterX, CenterY, HEIGHT, WIDTH, RotatedB);
-
-	// Reset RotatedR to the beginning of the allocated memory
-	RotatedR = &RotatedR[0];
-    RotatedG = &RotatedG[0];
-    RotatedB = &RotatedB[0];
-
-    printf("check 3\n");
-	// Separate and copy the rotated image channels (R, G, B)
-	for (int y = 0; y < HEIGHT; y++)
-	{
-		for (int x = 0; x < WIDTH; x++)
-		{
-			SetPixelR(image, x, y, RotatedR[x + y * WIDTH]);
-            SetPixelG(image, x, y, RotatedG[x + y * WIDTH]);
-            SetPixelB(image, x, y, RotatedB[x + y * WIDTH]);
-		}
-	}
-
-	// Free the allocated memory
-	free(RotatedR);
-    free(RotatedG);
-    free(RotatedB);
-    
-	return image;
-}
-
-/**
- * @brief
- * 
- */
-void kernel_rotate_R(Image *image, double *M, int CenterX, int CenterY, int HEIGHT, int WIDTH, double *Rotated)
-{
-    __m256d ymm0, ymm1, ymm2, ymm3, ymm4, ymm5, ymm6, ymm7, ymm8, ymm9, ymm10, ymm11, ymm12, ymm13, ymm14, ymm15;
-    ymm0 = _mm256_setzero_pd();  ymm1 = _mm256_setzero_pd();
-    ymm2 = _mm256_setzero_pd();  ymm3 = _mm256_setzero_pd();
-    ymm4 = _mm256_setzero_pd();  ymm5 = _mm256_setzero_pd();
-    ymm6 = _mm256_setzero_pd();  ymm7 = _mm256_setzero_pd();
-    ymm8 = _mm256_setzero_pd();  ymm9 = _mm256_setzero_pd();
-    ymm10 = _mm256_setzero_pd();
-
-	for (int y = 0; y < HEIGHT; y++)
-	{
-		for (int x = 0; x < WIDTH; x += 24)
-		{
-
-			ymm0 = _mm256_setr_pd(M[0], M[0], M[2], M[2]);
-			ymm1 = _mm256_setr_pd(-CenterX * M[0] + (y - CenterY) * M[1] + CenterX, 
-                -CenterX * M[0] + (y - CenterY) * M[1] + CenterX, 
-                -CenterX * M[2] + (y - CenterY) * M[3] + CenterY, 
-                -CenterX * M[2] + (y - CenterY) * M[3] + CenterY);
-
-			ymm2 = _mm256_setr_pd(x + 0, x + 1, x + 0, x + 1);
-			ymm3 = _mm256_setr_pd(x + 2, x + 3, x + 2, x + 3);
-
-			ymm4 = _mm256_fmadd_pd(ymm2, ymm0, ymm1);
-			ymm5 = _mm256_fmadd_pd(ymm3, ymm0, ymm1);
-
-			ymm2 = _mm256_setr_pd(x + 4, x + 5, x + 4, x + 5);
-			ymm3 = _mm256_setr_pd(x + 6, x + 7, x + 6, x + 7);
-
-			ymm6 = _mm256_fmadd_pd(ymm2, ymm0, ymm1);
-			ymm7 = _mm256_fmadd_pd(ymm3, ymm0, ymm1);
-
-			ymm2 = _mm256_setr_pd(x + 8, x + 9, x + 8, x + 9);
-			ymm3 = _mm256_setr_pd(x + 10, x + 11, x + 10, x + 11);
-
-			ymm8 = _mm256_fmadd_pd(ymm2, ymm0, ymm1);
-			ymm9 = _mm256_fmadd_pd(ymm3, ymm0, ymm1);
-
-			ymm2 = _mm256_setr_pd(x + 12, x + 13, x + 12, x + 13);
-			ymm3 = _mm256_setr_pd(x + 14, x + 15, x + 14, x + 15);
-
-			ymm10 = _mm256_fmadd_pd(ymm2, ymm0, ymm1);
-			ymm11 = _mm256_fmadd_pd(ymm3, ymm0, ymm1);
-
-			ymm2 = _mm256_setr_pd(x + 16, x + 17, x + 16, x + 17);
-			ymm3 = _mm256_setr_pd(x + 18, x + 19, x + 18, x + 19);
-
-			ymm12 = _mm256_fmadd_pd(ymm2, ymm0, ymm1);
-			ymm13 = _mm256_fmadd_pd(ymm3, ymm0, ymm1);
-
-			ymm2 = _mm256_setr_pd(x + 20, x + 21, x + 20, x + 21);
-			ymm3 = _mm256_setr_pd(x + 22, x + 23, x + 22, x + 23);
-
-			ymm14 = _mm256_fmadd_pd(ymm2, ymm0, ymm1);
-			ymm15 = _mm256_fmadd_pd(ymm3, ymm0, ymm1);
-
-			ymm0 = _mm256_set1_pd((double)WIDTH);
-
-			ymm1 = _mm256_cmp_pd(ymm4, ymm0, _CMP_LT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm5, ymm0, _CMP_LT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm6, ymm0, _CMP_LT_OQ);
-			ymm4 = _mm256_and_pd(ymm1, ymm4);
-			ymm5 = _mm256_and_pd(ymm2, ymm5);
-			ymm6 = _mm256_and_pd(ymm3, ymm6);
-
-			ymm1 = _mm256_cmp_pd(ymm7, ymm0, _CMP_LT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm8, ymm0, _CMP_LT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm9, ymm0, _CMP_LT_OQ);
-			ymm7 = _mm256_and_pd(ymm1, ymm7);
-			ymm8 = _mm256_and_pd(ymm2, ymm8);
-			ymm9 = _mm256_and_pd(ymm3, ymm9);
-
-			ymm1 = _mm256_cmp_pd(ymm10, ymm0, _CMP_LT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm11, ymm0, _CMP_LT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm12, ymm0, _CMP_LT_OQ);
-			ymm10 = _mm256_and_pd(ymm1, ymm10);
-			ymm11 = _mm256_and_pd(ymm2, ymm11);
-			ymm12 = _mm256_and_pd(ymm3, ymm12);
-
-			ymm1 = _mm256_cmp_pd(ymm13, ymm0, _CMP_LT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm14, ymm0, _CMP_LT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm15, ymm0, _CMP_LT_OQ);
-			ymm13 = _mm256_and_pd(ymm1, ymm13);
-			ymm14 = _mm256_and_pd(ymm2, ymm14);
-			ymm15 = _mm256_and_pd(ymm3, ymm15);
-
-			ymm0 = _mm256_set1_pd(0.0);
-
-			ymm1 = _mm256_cmp_pd(ymm4, ymm0, _CMP_GT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm5, ymm0, _CMP_GT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm6, ymm0, _CMP_GT_OQ);
-			ymm4 = _mm256_and_pd(ymm1, ymm4);
-			ymm5 = _mm256_and_pd(ymm2, ymm5);
-			ymm6 = _mm256_and_pd(ymm3, ymm6);
-
-			ymm1 = _mm256_cmp_pd(ymm7, ymm0, _CMP_GT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm8, ymm0, _CMP_GT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm9, ymm0, _CMP_GT_OQ);
-			ymm7 = _mm256_and_pd(ymm1, ymm7);
-			ymm8 = _mm256_and_pd(ymm2, ymm8);
-			ymm9 = _mm256_and_pd(ymm3, ymm9);
-
-			ymm1 = _mm256_cmp_pd(ymm10, ymm0, _CMP_GT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm11, ymm0, _CMP_GT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm12, ymm0, _CMP_GT_OQ);
-			ymm10 = _mm256_and_pd(ymm1, ymm10);
-			ymm11 = _mm256_and_pd(ymm2, ymm11);
-			ymm12 = _mm256_and_pd(ymm3, ymm12);
-
-			ymm1 = _mm256_cmp_pd(ymm13, ymm0, _CMP_GT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm14, ymm0, _CMP_GT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm15, ymm0, _CMP_GT_OQ);
-			ymm13 = _mm256_and_pd(ymm1, ymm13);
-			ymm14 = _mm256_and_pd(ymm2, ymm14);
-			ymm15 = _mm256_and_pd(ymm3, ymm15);
-
-			double result[48];
-			_mm256_storeu_pd(result, ymm4);
-			_mm256_storeu_pd(result + 4, ymm5);
-			_mm256_storeu_pd(result + 8, ymm6);
-			_mm256_storeu_pd(result + 12, ymm7);
-			_mm256_storeu_pd(result + 16, ymm8);
-			_mm256_storeu_pd(result + 20, ymm9);
-			_mm256_storeu_pd(result + 24, ymm10);
-			_mm256_storeu_pd(result + 28, ymm11);
-			_mm256_storeu_pd(result + 32, ymm12);
-			_mm256_storeu_pd(result + 36, ymm13);
-			_mm256_storeu_pd(result + 40, ymm14);
-			_mm256_storeu_pd(result + 44, ymm15);
-
-            ymm3 = _mm256_setr_pd(GetPixelR(image, result[0], result[2]), GetPixelR(image, result[1], result[3]), GetPixelR(image, result[4], result[6]), GetPixelR(image, result[5], result[7]));
-            ymm4 = _mm256_setr_pd(GetPixelR(image, result[8], result[10]), GetPixelR(image, result[9], result[11]), GetPixelR(image, result[12], result[14]), GetPixelR(image, result[13], result[15]));
-            ymm5 = _mm256_setr_pd(GetPixelR(image, result[16], result[18]), GetPixelR(image, result[17], result[19]), GetPixelR(image, result[20], result[22]), GetPixelR(image, result[21], result[23]));
-            ymm6 = _mm256_setr_pd(GetPixelR(image, result[24], result[26]), GetPixelR(image, result[25], result[27]), GetPixelR(image, result[28], result[30]), GetPixelR(image, result[29], result[31]));
-            ymm7 = _mm256_setr_pd(GetPixelR(image, result[32], result[34]), GetPixelR(image, result[33], result[35]), GetPixelR(image, result[36], result[38]), GetPixelR(image, result[37], result[39]));
-            ymm8 = _mm256_setr_pd(GetPixelR(image, result[40], result[42]), GetPixelR(image, result[41], result[43]), GetPixelR(image, result[42], result[46]), GetPixelR(image, result[45], result[47]));
-        
-			_mm256_storeu_pd(&Rotated[x + y * WIDTH], ymm3);
-			_mm256_storeu_pd(&Rotated[x + 4 + y * WIDTH], ymm4);
-			_mm256_storeu_pd(&Rotated[x + 8 + y * WIDTH], ymm5);
-			_mm256_storeu_pd(&Rotated[x + 12 + y * WIDTH], ymm6);
-			_mm256_storeu_pd(&Rotated[x + 16 + y * WIDTH], ymm7);
-			_mm256_storeu_pd(&Rotated[x + 20 + y * WIDTH], ymm8);
-		}
-	}
-}
-
-void kernel_rotate_G(Image *image, double *M, int CenterX, int CenterY, int HEIGHT, int WIDTH, double *Rotated)
-{
-    __m256d ymm0, ymm1, ymm2, ymm3, ymm4, ymm5, ymm6, ymm7, ymm8, ymm9, ymm10, ymm11, ymm12, ymm13, ymm14, ymm15;
-    ymm0 = _mm256_setzero_pd();  ymm1 = _mm256_setzero_pd();
-    ymm2 = _mm256_setzero_pd();  ymm3 = _mm256_setzero_pd();
-    ymm4 = _mm256_setzero_pd();  ymm5 = _mm256_setzero_pd();
-    ymm6 = _mm256_setzero_pd();  ymm7 = _mm256_setzero_pd();
-    ymm8 = _mm256_setzero_pd();  ymm9 = _mm256_setzero_pd();
-    ymm10 = _mm256_setzero_pd();
-
-	for (int y = 0; y < HEIGHT; y++)
-	{
-		for (int x = 0; x < WIDTH; x += 24)
-		{
-
-			ymm0 = _mm256_setr_pd(M[0], M[0], M[2], M[2]);
-			ymm1 = _mm256_setr_pd(-CenterX * M[0] + (y - CenterY) * M[1] + CenterX, 
-                -CenterX * M[0] + (y - CenterY) * M[1] + CenterX, 
-                -CenterX * M[2] + (y - CenterY) * M[3] + CenterY, 
-                -CenterX * M[2] + (y - CenterY) * M[3] + CenterY);
-
-			ymm2 = _mm256_setr_pd(x + 0, x + 1, x + 0, x + 1);
-			ymm3 = _mm256_setr_pd(x + 2, x + 3, x + 2, x + 3);
-
-			ymm4 = _mm256_fmadd_pd(ymm2, ymm0, ymm1);
-			ymm5 = _mm256_fmadd_pd(ymm3, ymm0, ymm1);
-
-			ymm2 = _mm256_setr_pd(x + 4, x + 5, x + 4, x + 5);
-			ymm3 = _mm256_setr_pd(x + 6, x + 7, x + 6, x + 7);
-
-			ymm6 = _mm256_fmadd_pd(ymm2, ymm0, ymm1);
-			ymm7 = _mm256_fmadd_pd(ymm3, ymm0, ymm1);
-
-			ymm2 = _mm256_setr_pd(x + 8, x + 9, x + 8, x + 9);
-			ymm3 = _mm256_setr_pd(x + 10, x + 11, x + 10, x + 11);
-
-			ymm8 = _mm256_fmadd_pd(ymm2, ymm0, ymm1);
-			ymm9 = _mm256_fmadd_pd(ymm3, ymm0, ymm1);
-
-			ymm2 = _mm256_setr_pd(x + 12, x + 13, x + 12, x + 13);
-			ymm3 = _mm256_setr_pd(x + 14, x + 15, x + 14, x + 15);
-
-			ymm10 = _mm256_fmadd_pd(ymm2, ymm0, ymm1);
-			ymm11 = _mm256_fmadd_pd(ymm3, ymm0, ymm1);
-
-			ymm2 = _mm256_setr_pd(x + 16, x + 17, x + 16, x + 17);
-			ymm3 = _mm256_setr_pd(x + 18, x + 19, x + 18, x + 19);
-
-			ymm12 = _mm256_fmadd_pd(ymm2, ymm0, ymm1);
-			ymm13 = _mm256_fmadd_pd(ymm3, ymm0, ymm1);
-
-			ymm2 = _mm256_setr_pd(x + 20, x + 21, x + 20, x + 21);
-			ymm3 = _mm256_setr_pd(x + 22, x + 23, x + 22, x + 23);
-
-			ymm14 = _mm256_fmadd_pd(ymm2, ymm0, ymm1);
-			ymm15 = _mm256_fmadd_pd(ymm3, ymm0, ymm1);
-
-			ymm0 = _mm256_set1_pd((double)WIDTH);
-
-			ymm1 = _mm256_cmp_pd(ymm4, ymm0, _CMP_LT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm5, ymm0, _CMP_LT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm6, ymm0, _CMP_LT_OQ);
-			ymm4 = _mm256_and_pd(ymm1, ymm4);
-			ymm5 = _mm256_and_pd(ymm2, ymm5);
-			ymm6 = _mm256_and_pd(ymm3, ymm6);
-
-			ymm1 = _mm256_cmp_pd(ymm7, ymm0, _CMP_LT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm8, ymm0, _CMP_LT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm9, ymm0, _CMP_LT_OQ);
-			ymm7 = _mm256_and_pd(ymm1, ymm7);
-			ymm8 = _mm256_and_pd(ymm2, ymm8);
-			ymm9 = _mm256_and_pd(ymm3, ymm9);
-
-			ymm1 = _mm256_cmp_pd(ymm10, ymm0, _CMP_LT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm11, ymm0, _CMP_LT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm12, ymm0, _CMP_LT_OQ);
-			ymm10 = _mm256_and_pd(ymm1, ymm10);
-			ymm11 = _mm256_and_pd(ymm2, ymm11);
-			ymm12 = _mm256_and_pd(ymm3, ymm12);
-
-			ymm1 = _mm256_cmp_pd(ymm13, ymm0, _CMP_LT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm14, ymm0, _CMP_LT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm15, ymm0, _CMP_LT_OQ);
-			ymm13 = _mm256_and_pd(ymm1, ymm13);
-			ymm14 = _mm256_and_pd(ymm2, ymm14);
-			ymm15 = _mm256_and_pd(ymm3, ymm15);
-
-			ymm0 = _mm256_set1_pd(0.0);
-
-			ymm1 = _mm256_cmp_pd(ymm4, ymm0, _CMP_GT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm5, ymm0, _CMP_GT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm6, ymm0, _CMP_GT_OQ);
-			ymm4 = _mm256_and_pd(ymm1, ymm4);
-			ymm5 = _mm256_and_pd(ymm2, ymm5);
-			ymm6 = _mm256_and_pd(ymm3, ymm6);
-
-			ymm1 = _mm256_cmp_pd(ymm7, ymm0, _CMP_GT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm8, ymm0, _CMP_GT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm9, ymm0, _CMP_GT_OQ);
-			ymm7 = _mm256_and_pd(ymm1, ymm7);
-			ymm8 = _mm256_and_pd(ymm2, ymm8);
-			ymm9 = _mm256_and_pd(ymm3, ymm9);
-
-			ymm1 = _mm256_cmp_pd(ymm10, ymm0, _CMP_GT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm11, ymm0, _CMP_GT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm12, ymm0, _CMP_GT_OQ);
-			ymm10 = _mm256_and_pd(ymm1, ymm10);
-			ymm11 = _mm256_and_pd(ymm2, ymm11);
-			ymm12 = _mm256_and_pd(ymm3, ymm12);
-
-			ymm1 = _mm256_cmp_pd(ymm13, ymm0, _CMP_GT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm14, ymm0, _CMP_GT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm15, ymm0, _CMP_GT_OQ);
-			ymm13 = _mm256_and_pd(ymm1, ymm13);
-			ymm14 = _mm256_and_pd(ymm2, ymm14);
-			ymm15 = _mm256_and_pd(ymm3, ymm15);
-
-			double result[48];
-			_mm256_storeu_pd(result, ymm4);
-			_mm256_storeu_pd(result + 4, ymm5);
-			_mm256_storeu_pd(result + 8, ymm6);
-			_mm256_storeu_pd(result + 12, ymm7);
-			_mm256_storeu_pd(result + 16, ymm8);
-			_mm256_storeu_pd(result + 20, ymm9);
-			_mm256_storeu_pd(result + 24, ymm10);
-			_mm256_storeu_pd(result + 28, ymm11);
-			_mm256_storeu_pd(result + 32, ymm12);
-			_mm256_storeu_pd(result + 36, ymm13);
-			_mm256_storeu_pd(result + 40, ymm14);
-			_mm256_storeu_pd(result + 44, ymm15);
-
-            ymm3 = _mm256_setr_pd(GetPixelG(image, result[0], result[2]), GetPixelG(image, result[1], result[3]), GetPixelG(image, result[4], result[6]), GetPixelG(image, result[5], result[7]));
-            ymm4 = _mm256_setr_pd(GetPixelG(image, result[8], result[10]), GetPixelG(image, result[9], result[11]), GetPixelG(image, result[12], result[14]), GetPixelG(image, result[13], result[15]));
-            ymm5 = _mm256_setr_pd(GetPixelG(image, result[16], result[18]), GetPixelG(image, result[17], result[19]), GetPixelG(image, result[20], result[22]), GetPixelG(image, result[21], result[23]));
-            ymm6 = _mm256_setr_pd(GetPixelG(image, result[24], result[26]), GetPixelG(image, result[25], result[27]), GetPixelG(image, result[28], result[30]), GetPixelG(image, result[29], result[31]));
-            ymm7 = _mm256_setr_pd(GetPixelG(image, result[32], result[34]), GetPixelG(image, result[33], result[35]), GetPixelG(image, result[36], result[38]), GetPixelG(image, result[37], result[39]));
-            ymm8 = _mm256_setr_pd(GetPixelG(image, result[40], result[42]), GetPixelG(image, result[41], result[43]), GetPixelG(image, result[42], result[46]), GetPixelR(image, result[45], result[47]));
-        
-			_mm256_storeu_pd(&Rotated[x + y * WIDTH], ymm3);
-			_mm256_storeu_pd(&Rotated[x + 4 + y * WIDTH], ymm4);
-			_mm256_storeu_pd(&Rotated[x + 8 + y * WIDTH], ymm5);
-			_mm256_storeu_pd(&Rotated[x + 12 + y * WIDTH], ymm6);
-			_mm256_storeu_pd(&Rotated[x + 16 + y * WIDTH], ymm7);
-			_mm256_storeu_pd(&Rotated[x + 20 + y * WIDTH], ymm8);
-		}
-	}
-}
-
-void kernel_rotate_B(Image *image, double *M, int CenterX, int CenterY, int HEIGHT, int WIDTH, double *Rotated)
-{
-    __m256d ymm0, ymm1, ymm2, ymm3, ymm4, ymm5, ymm6, ymm7, ymm8, ymm9, ymm10, ymm11, ymm12, ymm13, ymm14, ymm15;
-    ymm0 = _mm256_setzero_pd();  ymm1 = _mm256_setzero_pd();
-    ymm2 = _mm256_setzero_pd();  ymm3 = _mm256_setzero_pd();
-    ymm4 = _mm256_setzero_pd();  ymm5 = _mm256_setzero_pd();
-    ymm6 = _mm256_setzero_pd();  ymm7 = _mm256_setzero_pd();
-    ymm8 = _mm256_setzero_pd();  ymm9 = _mm256_setzero_pd();
-    ymm10 = _mm256_setzero_pd();
-
-	for (int y = 0; y < HEIGHT; y++)
-	{
-		for (int x = 0; x < WIDTH; x += 24)
-		{
-
-			ymm0 = _mm256_setr_pd(M[0], M[0], M[2], M[2]);
-			ymm1 = _mm256_setr_pd(-CenterX * M[0] + (y - CenterY) * M[1] + CenterX, 
-                -CenterX * M[0] + (y - CenterY) * M[1] + CenterX, 
-                -CenterX * M[2] + (y - CenterY) * M[3] + CenterY, 
-                -CenterX * M[2] + (y - CenterY) * M[3] + CenterY);
-
-			ymm2 = _mm256_setr_pd(x + 0, x + 1, x + 0, x + 1);
-			ymm3 = _mm256_setr_pd(x + 2, x + 3, x + 2, x + 3);
-
-			ymm4 = _mm256_fmadd_pd(ymm2, ymm0, ymm1);
-			ymm5 = _mm256_fmadd_pd(ymm3, ymm0, ymm1);
-
-			ymm2 = _mm256_setr_pd(x + 4, x + 5, x + 4, x + 5);
-			ymm3 = _mm256_setr_pd(x + 6, x + 7, x + 6, x + 7);
-
-			ymm6 = _mm256_fmadd_pd(ymm2, ymm0, ymm1);
-			ymm7 = _mm256_fmadd_pd(ymm3, ymm0, ymm1);
-
-			ymm2 = _mm256_setr_pd(x + 8, x + 9, x + 8, x + 9);
-			ymm3 = _mm256_setr_pd(x + 10, x + 11, x + 10, x + 11);
-
-			ymm8 = _mm256_fmadd_pd(ymm2, ymm0, ymm1);
-			ymm9 = _mm256_fmadd_pd(ymm3, ymm0, ymm1);
-
-			ymm2 = _mm256_setr_pd(x + 12, x + 13, x + 12, x + 13);
-			ymm3 = _mm256_setr_pd(x + 14, x + 15, x + 14, x + 15);
-
-			ymm10 = _mm256_fmadd_pd(ymm2, ymm0, ymm1);
-			ymm11 = _mm256_fmadd_pd(ymm3, ymm0, ymm1);
-
-			ymm2 = _mm256_setr_pd(x + 16, x + 17, x + 16, x + 17);
-			ymm3 = _mm256_setr_pd(x + 18, x + 19, x + 18, x + 19);
-
-			ymm12 = _mm256_fmadd_pd(ymm2, ymm0, ymm1);
-			ymm13 = _mm256_fmadd_pd(ymm3, ymm0, ymm1);
-
-			ymm2 = _mm256_setr_pd(x + 20, x + 21, x + 20, x + 21);
-			ymm3 = _mm256_setr_pd(x + 22, x + 23, x + 22, x + 23);
-
-			ymm14 = _mm256_fmadd_pd(ymm2, ymm0, ymm1);
-			ymm15 = _mm256_fmadd_pd(ymm3, ymm0, ymm1);
-
-			ymm0 = _mm256_set1_pd((double)WIDTH);
-
-			ymm1 = _mm256_cmp_pd(ymm4, ymm0, _CMP_LT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm5, ymm0, _CMP_LT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm6, ymm0, _CMP_LT_OQ);
-			ymm4 = _mm256_and_pd(ymm1, ymm4);
-			ymm5 = _mm256_and_pd(ymm2, ymm5);
-			ymm6 = _mm256_and_pd(ymm3, ymm6);
-
-			ymm1 = _mm256_cmp_pd(ymm7, ymm0, _CMP_LT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm8, ymm0, _CMP_LT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm9, ymm0, _CMP_LT_OQ);
-			ymm7 = _mm256_and_pd(ymm1, ymm7);
-			ymm8 = _mm256_and_pd(ymm2, ymm8);
-			ymm9 = _mm256_and_pd(ymm3, ymm9);
-
-			ymm1 = _mm256_cmp_pd(ymm10, ymm0, _CMP_LT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm11, ymm0, _CMP_LT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm12, ymm0, _CMP_LT_OQ);
-			ymm10 = _mm256_and_pd(ymm1, ymm10);
-			ymm11 = _mm256_and_pd(ymm2, ymm11);
-			ymm12 = _mm256_and_pd(ymm3, ymm12);
-
-			ymm1 = _mm256_cmp_pd(ymm13, ymm0, _CMP_LT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm14, ymm0, _CMP_LT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm15, ymm0, _CMP_LT_OQ);
-			ymm13 = _mm256_and_pd(ymm1, ymm13);
-			ymm14 = _mm256_and_pd(ymm2, ymm14);
-			ymm15 = _mm256_and_pd(ymm3, ymm15);
-
-			ymm0 = _mm256_set1_pd(0.0);
-
-			ymm1 = _mm256_cmp_pd(ymm4, ymm0, _CMP_GT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm5, ymm0, _CMP_GT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm6, ymm0, _CMP_GT_OQ);
-			ymm4 = _mm256_and_pd(ymm1, ymm4);
-			ymm5 = _mm256_and_pd(ymm2, ymm5);
-			ymm6 = _mm256_and_pd(ymm3, ymm6);
-
-			ymm1 = _mm256_cmp_pd(ymm7, ymm0, _CMP_GT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm8, ymm0, _CMP_GT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm9, ymm0, _CMP_GT_OQ);
-			ymm7 = _mm256_and_pd(ymm1, ymm7);
-			ymm8 = _mm256_and_pd(ymm2, ymm8);
-			ymm9 = _mm256_and_pd(ymm3, ymm9);
-
-			ymm1 = _mm256_cmp_pd(ymm10, ymm0, _CMP_GT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm11, ymm0, _CMP_GT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm12, ymm0, _CMP_GT_OQ);
-			ymm10 = _mm256_and_pd(ymm1, ymm10);
-			ymm11 = _mm256_and_pd(ymm2, ymm11);
-			ymm12 = _mm256_and_pd(ymm3, ymm12);
-
-			ymm1 = _mm256_cmp_pd(ymm13, ymm0, _CMP_GT_OQ);
-			ymm2 = _mm256_cmp_pd(ymm14, ymm0, _CMP_GT_OQ);
-			ymm3 = _mm256_cmp_pd(ymm15, ymm0, _CMP_GT_OQ);
-			ymm13 = _mm256_and_pd(ymm1, ymm13);
-			ymm14 = _mm256_and_pd(ymm2, ymm14);
-			ymm15 = _mm256_and_pd(ymm3, ymm15);
-
-			double result[48];
-			_mm256_storeu_pd(result, ymm4);
-			_mm256_storeu_pd(result + 4, ymm5);
-			_mm256_storeu_pd(result + 8, ymm6);
-			_mm256_storeu_pd(result + 12, ymm7);
-			_mm256_storeu_pd(result + 16, ymm8);
-			_mm256_storeu_pd(result + 20, ymm9);
-			_mm256_storeu_pd(result + 24, ymm10);
-			_mm256_storeu_pd(result + 28, ymm11);
-			_mm256_storeu_pd(result + 32, ymm12);
-			_mm256_storeu_pd(result + 36, ymm13);
-			_mm256_storeu_pd(result + 40, ymm14);
-			_mm256_storeu_pd(result + 44, ymm15);
-
-            ymm3 = _mm256_setr_pd(GetPixelB(image, result[0], result[2]), GetPixelB(image, result[1], result[3]), GetPixelB(image, result[4], result[6]), GetPixelB(image, result[5], result[7]));
-            ymm4 = _mm256_setr_pd(GetPixelB(image, result[8], result[10]), GetPixelB(image, result[9], result[11]), GetPixelB(image, result[12], result[14]), GetPixelB(image, result[13], result[15]));
-            ymm5 = _mm256_setr_pd(GetPixelB(image, result[16], result[18]), GetPixelB(image, result[17], result[19]), GetPixelB(image, result[20], result[22]), GetPixelB(image, result[21], result[23]));
-            ymm6 = _mm256_setr_pd(GetPixelB(image, result[24], result[26]), GetPixelB(image, result[25], result[27]), GetPixelB(image, result[28], result[30]), GetPixelB(image, result[29], result[31]));
-            ymm7 = _mm256_setr_pd(GetPixelB(image, result[32], result[34]), GetPixelB(image, result[33], result[35]), GetPixelB(image, result[36], result[38]), GetPixelB(image, result[37], result[39]));
-            ymm8 = _mm256_setr_pd(GetPixelB(image, result[40], result[42]), GetPixelB(image, result[41], result[43]), GetPixelB(image, result[42], result[46]), GetPixelR(image, result[45], result[47]));
-        
-			_mm256_storeu_pd(&Rotated[x + y * WIDTH], ymm3);
-			_mm256_storeu_pd(&Rotated[x + 4 + y * WIDTH], ymm4);
-			_mm256_storeu_pd(&Rotated[x + 8 + y * WIDTH], ymm5);
-			_mm256_storeu_pd(&Rotated[x + 12 + y * WIDTH], ymm6);
-			_mm256_storeu_pd(&Rotated[x + 16 + y * WIDTH], ymm7);
-			_mm256_storeu_pd(&Rotated[x + 20 + y * WIDTH], ymm8);
-		}
-	}
+    M[0] = cos(Radian) / ScaleFactor;
+	M[1] = -sin(Radian) / ScaleFactor;
+	M[2] = sin(Radian) / ScaleFactor;
+	M[3] = cos(Radian) / ScaleFactor;
+
+    /* Generate the original coordinates */
+    #pragma omp parallel for num_threads(8)
+    for (int i = 0; i < HEIGHT; i++) {
+        for (int j = 0; j < WIDTH; j++) { 
+            OriginalX[j + i * WIDTH] = j;
+            OriginalY[j + i * WIDTH] = i;
+        }
+    }
+
+    /* Kernel for rotate and zoom */
+    kernel_rotate(image, M, CenterX, CenterY, HEIGHT, WIDTH, OriginalX, OriginalY, RotatedX, RotatedY);
+
+    /* Set the RGB */
+    #pragma omp parallel for num_threads(8)
+    for (int i = 0; i < HEIGHT; i++) {
+        for (int j = 0; j < WIDTH; j++) {
+            int index = j + i * WIDTH;
+
+            if (RotatedX[index] >= 0 && RotatedX[index] < WIDTH && RotatedY[index] >= 0 && RotatedY[index] < HEIGHT) {
+                RotatedR[j][i] = GetPixelR(image, RotatedX[index], RotatedY[index]);
+                RotatedG[j][i] = GetPixelG(image, RotatedX[index], RotatedY[index]);
+                RotatedB[j][i] = GetPixelB(image, RotatedX[index], RotatedY[index]);
+            } else {
+                RotatedR[j][i] = 0;
+                RotatedG[j][i] = 0;
+                RotatedB[j][i] = 0;
+            }
+        }
+    }
+
+    #pragma omp parallel for num_threads(8)
+    for (int i = 0; i < HEIGHT; i++) {
+        for (int j = 0; j < WIDTH; j++) { 
+            SetPixelR(image, j, i, RotatedR[j][i]);
+            SetPixelG(image, j, i, RotatedG[j][i]);
+            SetPixelB(image, j, i, RotatedB[j][i]);
+        }
+    }
+
+    free(OriginalX);
+    free(OriginalY);
+    free(RotatedX);
+    free(RotatedY);
+
+    return image; 
 }
 
 /**
@@ -1009,6 +587,7 @@ Image *MotionBlur_Turbo(Image *image) {
     _mm256_storeu_pd(&resultB[TOTAL_PIXELS - 16], ymm8);
     _mm256_storeu_pd(&resultB[TOTAL_PIXELS - 12], ymm9);
     _mm256_storeu_pd(&resultB[TOTAL_PIXELS - 8], ymm10);
+    /****** loop peeling END ******/
 
     /* set the RGB */
 	for (i = 0; i < HEIGHT; i++) {
@@ -1018,9 +597,139 @@ Image *MotionBlur_Turbo(Image *image) {
 			SetPixelB(image, j, i, resultB[j + i * WIDTH]);
 		}
 	}
-    /****** loop peeling END ******/
 
     return image;
+}
+
+/**
+ * @brief This function is kernel of rotate and zoom.
+ * 
+ * SIMD Regs allocation:
+ * 4 for constant: ymm0, ymm1, ymm2, ymm3
+ * 2 for input: ymm4, ymm5
+ * 10 for output: ymm6, ymm7, ymm8, ymm9, ymm10, ymm11, ymm12, ymm13, ymm14, ymm15
+ * 
+ * @param input The input image.
+ * @param output The output image.
+ */
+void kernel_rotate(Image *image, double *M, int CenterX, int CenterY, int HEIGHT, int WIDTH, double *OriginalX, double *OriginalY, double *RotatedX, double *RotatedY) {
+    __m256d ymm0, ymm1, ymm2, ymm3, ymm4, ymm5, ymm6, ymm7;
+    __m256d ymm8, ymm9, ymm10, ymm11, ymm12, ymm13, ymm14, ymm15;
+
+    ymm0 = _mm256_setzero_pd();  ymm1 = _mm256_setzero_pd();
+    ymm2 = _mm256_setzero_pd();  ymm3 = _mm256_setzero_pd();
+    ymm4 = _mm256_setzero_pd();  ymm5 = _mm256_setzero_pd();
+    ymm6 = _mm256_setzero_pd();  ymm7 = _mm256_setzero_pd();
+    ymm8 = _mm256_setzero_pd();  ymm9 = _mm256_setzero_pd();
+    ymm10 = _mm256_setzero_pd(); ymm11 = _mm256_setzero_pd();
+    ymm12 = _mm256_setzero_pd(); ymm13 = _mm256_setzero_pd();
+    ymm14 = _mm256_setzero_pd(); ymm15 = _mm256_setzero_pd();
+
+    ymm2 = _mm256_set1_pd((double)CenterX);
+    ymm3 = _mm256_set1_pd((double)CenterY);
+
+    for (int i = 0; i < HEIGHT * WIDTH; i += 20) {
+        ymm4 = _mm256_loadu_pd(&OriginalX[i]);
+        ymm5 = _mm256_loadu_pd(&OriginalY[i]);
+        ymm0 = _mm256_broadcast_sd(&M[0]); 
+        ymm1 = _mm256_broadcast_sd(&M[1]);
+
+        ymm6 = _mm256_fmadd_pd(ymm0, ymm4, ymm2);
+        ymm6 = _mm256_fmadd_pd(ymm1, ymm5, ymm6);
+        ymm6 = _mm256_fnmadd_pd(ymm0, ymm2, ymm6);
+        ymm6 = _mm256_fnmadd_pd(ymm1, ymm3, ymm6);
+
+        ymm0 = _mm256_broadcast_sd(&M[2]);
+        ymm1 = _mm256_broadcast_sd(&M[3]);
+
+        ymm7 = _mm256_fmadd_pd(ymm0, ymm4, ymm3);
+        ymm7 = _mm256_fmadd_pd(ymm1, ymm5, ymm7);
+        ymm7 = _mm256_fnmadd_pd(ymm0, ymm2, ymm7);
+        ymm7 = _mm256_fnmadd_pd(ymm1, ymm3, ymm7);
+
+        ymm4 = _mm256_loadu_pd(&OriginalX[i + 4]);
+        ymm5 = _mm256_loadu_pd(&OriginalY[i + 4]);
+        ymm0 = _mm256_broadcast_sd(&M[0]);
+        ymm1 = _mm256_broadcast_sd(&M[1]);
+
+        ymm8 = _mm256_fmadd_pd(ymm0, ymm4, ymm2);
+        ymm8 = _mm256_fmadd_pd(ymm1, ymm5, ymm8);
+        ymm8 = _mm256_fnmadd_pd(ymm0, ymm2, ymm8);
+        ymm8 = _mm256_fnmadd_pd(ymm1, ymm3, ymm8);
+
+        ymm0 = _mm256_broadcast_sd(&M[2]);
+        ymm1 = _mm256_broadcast_sd(&M[3]);
+
+        ymm9 = _mm256_fmadd_pd(ymm0, ymm4, ymm3);
+        ymm9 = _mm256_fmadd_pd(ymm1, ymm5, ymm9);
+        ymm9 = _mm256_fnmadd_pd(ymm0, ymm2, ymm9);
+        ymm9 = _mm256_fnmadd_pd(ymm1, ymm3, ymm9);
+
+        ymm4 = _mm256_loadu_pd(&OriginalX[i + 8]);
+        ymm5 = _mm256_loadu_pd(&OriginalY[i + 8]);
+        ymm0 = _mm256_broadcast_sd(&M[0]);
+        ymm1 = _mm256_broadcast_sd(&M[1]);
+
+        ymm10 = _mm256_fmadd_pd(ymm0, ymm4, ymm2);
+        ymm10 = _mm256_fmadd_pd(ymm1, ymm5, ymm10);
+        ymm10 = _mm256_fnmadd_pd(ymm0, ymm2, ymm10);
+        ymm10 = _mm256_fnmadd_pd(ymm1, ymm3, ymm10);
+
+        ymm0 = _mm256_broadcast_sd(&M[2]);
+        ymm1 = _mm256_broadcast_sd(&M[3]);
+
+        ymm11 = _mm256_fmadd_pd(ymm0, ymm4, ymm3);
+        ymm11 = _mm256_fmadd_pd(ymm1, ymm5, ymm11);
+        ymm11 = _mm256_fnmadd_pd(ymm0, ymm2, ymm11);
+        ymm11 = _mm256_fnmadd_pd(ymm1, ymm3, ymm11);
+
+        ymm4 = _mm256_loadu_pd(&OriginalX[i + 12]);
+        ymm5 = _mm256_loadu_pd(&OriginalY[i + 12]);
+        ymm0 = _mm256_broadcast_sd(&M[0]);
+        ymm1 = _mm256_broadcast_sd(&M[1]);
+
+        ymm12 = _mm256_fmadd_pd(ymm0, ymm4, ymm2);
+        ymm12 = _mm256_fmadd_pd(ymm1, ymm5, ymm12);
+        ymm12 = _mm256_fnmadd_pd(ymm0, ymm2, ymm12);
+        ymm12 = _mm256_fnmadd_pd(ymm1, ymm3, ymm12);
+
+        ymm0 = _mm256_broadcast_sd(&M[2]);
+        ymm1 = _mm256_broadcast_sd(&M[3]);
+
+        ymm13 = _mm256_fmadd_pd(ymm0, ymm4, ymm3);
+        ymm13 = _mm256_fmadd_pd(ymm1, ymm5, ymm13);
+        ymm13 = _mm256_fnmadd_pd(ymm0, ymm2, ymm13);
+        ymm13 = _mm256_fnmadd_pd(ymm1, ymm3, ymm13);
+
+        ymm4 = _mm256_loadu_pd(&OriginalX[i + 16]);
+        ymm5 = _mm256_loadu_pd(&OriginalY[i + 16]);
+        ymm0 = _mm256_broadcast_sd(&M[0]);
+        ymm1 = _mm256_broadcast_sd(&M[1]);
+
+        ymm14 = _mm256_fmadd_pd(ymm0, ymm4, ymm2);
+        ymm14 = _mm256_fmadd_pd(ymm1, ymm5, ymm14);
+        ymm14 = _mm256_fnmadd_pd(ymm0, ymm2, ymm14);
+        ymm14 = _mm256_fnmadd_pd(ymm1, ymm3, ymm14);
+
+        ymm0 = _mm256_broadcast_sd(&M[2]);
+        ymm1 = _mm256_broadcast_sd(&M[3]);
+
+        ymm15 = _mm256_fmadd_pd(ymm0, ymm4, ymm3);
+        ymm15 = _mm256_fmadd_pd(ymm1, ymm5, ymm15);
+        ymm15 = _mm256_fnmadd_pd(ymm0, ymm2, ymm15);
+        ymm15 = _mm256_fnmadd_pd(ymm1, ymm3, ymm15);
+
+        _mm256_storeu_pd(&RotatedX[i], ymm6);
+        _mm256_storeu_pd(&RotatedY[i], ymm7);
+        _mm256_storeu_pd(&RotatedX[i + 4], ymm8);
+        _mm256_storeu_pd(&RotatedY[i + 4], ymm9);
+        _mm256_storeu_pd(&RotatedX[i + 8], ymm10);
+        _mm256_storeu_pd(&RotatedY[i + 8], ymm11);
+        _mm256_storeu_pd(&RotatedX[i + 12], ymm12);
+        _mm256_storeu_pd(&RotatedY[i + 12], ymm13);
+        _mm256_storeu_pd(&RotatedX[i + 16], ymm14);
+        _mm256_storeu_pd(&RotatedY[i + 16], ymm15);
+    }
 }
 
 /**
@@ -1238,7 +947,6 @@ void kernel_edge(double* input, double* output) {
     ymm0 = _mm256_set_pd((double) -1, (double) -1, (double) -1, (double) -1);
     ymm1 = _mm256_set_pd((double) 8, (double) 8, (double) 8, (double) 8);
 
-    /* #pragma omp parallel for num_threads(4) // create 4 threads */
     for (int j = 0; j < 140; j++) {  // 140 rows of block
         for (int i = 0; i < 30; i++) { // 30 colums of block
 
@@ -1608,4 +1316,5 @@ void kernel_blur(double* input, double* output, int numPixels, int start, int nu
         _mm256_storeu_pd(&output[i + 36], ymm15);
     }
 }
+
 /* EOF kernel.c */
