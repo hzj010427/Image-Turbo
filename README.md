@@ -5,9 +5,9 @@ Welcome to the Image-Turbo project, a utility designed for efficient
 image processing with operations like blur, rotate, zoom, and edge.
 
 Group Members:
-Zijian Huang
-Ningyan Zhang
-Yueze Cao
+- Zijian Huang
+- Ningyan Zhang
+- Yueze Cao
 
 # Download Methods
 
