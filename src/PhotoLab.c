@@ -168,7 +168,9 @@ void PrintMenu() {
     printf("|   (e.g., for 'test.ppm', just enter 'test')           |\n");
 	printf("| * For option selection, enter the number only.        |\n");
 	printf("|   (e.g., for 'Exit', just enter '20')                 |\n");
-	printf("| * Last updated: 12/10/2023                            |\n");
+	printf("| * For rotate and zoom, X and Y center should be       |\n");
+	printf("|   within the size of image.                           |\n");
+	printf("| * Last updated: 12/11/2023                            |\n");
     printf("=========================================================\n");
     printf("| Options:                                          	|\n");
     printf("|  1: Load a PPM image                              	|\n");
