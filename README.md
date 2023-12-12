@@ -30,6 +30,12 @@ Group Members:
 - `pic/`: Stores images for testing.
 - `output/`: Holds processed images.
 
+# How to Test
+
+- Navigate to the directory with `driver.sh`, run `./driver.sh`.
+- The script will run all the test cases and output the clock cycles for each operation.
+- The script will also generate the output images in the same directory with the name `test.txt`.
+
 # How to Run
 
 - Navigate to the directory with `makefile`, run `make`.
