@@ -77,7 +77,20 @@ void kernel_rotate(Image *image, double *M, int CenterX, int CenterY,
  * @param input The input image.
  * @param output The output image.
  */
-void kernel_edge(double* input, double* output);
+void kernel_edge(double* input, double* output, int old_width, int old_height, int new_width);
+
+/**
+ * @brief This function is kernel of edge detection.
+ * 
+ * SIMD Regs allocation:
+ * 2 for constant: ymm0, ymm1
+ * 4 for input: ymm2, ymm3, ymm4, ymm5
+ * 10 for output: ymm6, ymm7, ymm8, ymm9, ymm10, ymm11, ymm12, ymm13
+ * 
+ * @param input The input image.
+ * @param output The output image.
+ */
+void pre_process_edge(double* input, double* output, int old_width, int old_height, int new_width);
 
 /**
  * @brief This function preprocesses the image for edge detection.
@@ -87,7 +100,7 @@ void kernel_edge(double* input, double* output);
  * @param input The input image.
  * @param output The output image.
  */
-void pre_process_edge(double* input, double* output);
+void pre_process_edge(double* input, double* output, int old_width, int old_height, int new_width);
 
 /**
  * @brief This function post process the image after edge detection.
@@ -97,5 +110,4 @@ void pre_process_edge(double* input, double* output);
  * @param input The input image.
  * @param output The output image.
  */
-void post_process_edge(double* input, double* output);
-
+void post_process_edge(double* input, double* output, int old_width, int old_height);
