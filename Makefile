@@ -7,7 +7,7 @@ DESIGN = bin/PhotoLab bin/PhotoLabTest
 #libs
 LIBS   = src/libFilter.a src/libFileIO.a
 
-CC     = gcc -mavx -mfma -fopenmp
+CC     = gcc -mavx -mfma -fopenmp -O1
 DEBUG  = -DDEBUG -g
 CFLAGS = -Wall -std=c99
 LFLAGS = -Wall -lm
@@ -66,7 +66,12 @@ bin/PhotoLab: src/PhotoLab.o src/FileIO.o src/Image.o src/libFilter.a
 #target to generate test
 bin/PhotoLabTest: src/PhotoLab_DEBUG.o src/FileIO_DEBUG.o src/Image.o src/libFilter.a
 	$(CC) $(LFLAGS) src/PhotoLab_DEBUG.o src/FileIO_DEBUG.o src/Image.o -Lsrc -lFilter -o bin/PhotoLabTest
-	
+
+# New target to generate assembly output
+assembly: bin/PhotoLab bin/PhotoLabTest
+	objdump -d bin/PhotoLab > assembly/PhotoLab.asm
+	objdump -d bin/PhotoLabTest > assembly/PhotoLabTest.asm
+
 #target to clean the directory
 clean:
 	rm -f src/*.o output/*.ppm $(DESIGN) $(LIBS)
