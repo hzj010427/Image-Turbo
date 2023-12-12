@@ -121,14 +121,14 @@ Image *Edge_Turbo(Image *image) {
 	assert(image);
 
     int             i, j;
-    int HEIGHT = ImageHeight(image); // 2 * 139 + 4
-	int WIDTH = ImageWidth(image); // 16 * 29 + 20
+    int HEIGHT = ImageHeight(image); // 2 * 139 + 4   282
+	int WIDTH = ImageWidth(image); // 16 * 29 + 20  484
 
-    int TMP_HEIGHT = 2 * (HEIGHT - 2); // 4 * 140
+    int TMP_HEIGHT = 2 * (HEIGHT - 2); // 4 * 140  
     int TMP_WIDTH = ((WIDTH - 4) / 16) * 24; // 24 * 30
 
-    int RESULT_HEIGHT = HEIGHT - 2; // 2 * 140
-    int RESULT_WIDTH = WIDTH - 4; // 16 * 30
+    int RESULT_HEIGHT = TMP_HEIGHT / 2; // 2 * 140
+    int RESULT_WIDTH = 2 * TMP_WIDTH / 3; // 16 * 30
 
     double edgeR[HEIGHT * WIDTH];
 	double edgeG[HEIGHT * WIDTH];
@@ -159,11 +159,6 @@ Image *Edge_Turbo(Image *image) {
     pre_process_edge(edgeR, tmpR, WIDTH, HEIGHT, TMP_WIDTH);
     pre_process_edge(edgeG, tmpG, WIDTH, HEIGHT, TMP_WIDTH);
     pre_process_edge(edgeB, tmpB, WIDTH, HEIGHT, TMP_WIDTH);
-
-    for (i = 0; i < TMP_HEIGHT; i++) {
-        for (j = 0; j < TMP_WIDTH; j++) {
-        }
-    }
 
     /* kernel */
     kernel_edge(tmpR, tmpresultR, TMP_WIDTH, TMP_HEIGHT, RESULT_WIDTH);
@@ -1147,16 +1142,16 @@ void post_process_edge(double* input, double* output, int old_width, int old_hei
             ymm14 = _mm256_setzero_pd();  ymm15 = _mm256_setzero_pd();
 
             // line: 1
-            ymm0 = _mm256_loadu_pd(&input[i * 16 + j * 2 * old_height]);
-            ymm1 = _mm256_loadu_pd(&input[i * 16 + 4 + j * 2 * old_height]);
-            ymm2 = _mm256_loadu_pd(&input[i * 16 + 8 + j * 2 * old_height]);
-            ymm3 = _mm256_loadu_pd(&input[i * 16 + 12 + j * 2 * old_height]);
+            ymm0 = _mm256_loadu_pd(&input[i * 16 + j * 2 * old_width]);
+            ymm1 = _mm256_loadu_pd(&input[i * 16 + 4 + j * 2 * old_width]);
+            ymm2 = _mm256_loadu_pd(&input[i * 16 + 8 + j * 2 * old_width]);
+            ymm3 = _mm256_loadu_pd(&input[i * 16 + 12 + j * 2 * old_width]);
 
             // line: 2
-            ymm8 = _mm256_loadu_pd(&input[i * 16 + (j * 2 + 1) * old_height]);
-            ymm9 = _mm256_loadu_pd(&input[i * 16 + 4 + (j * 2 + 1) * old_height]);
-            ymm10 = _mm256_loadu_pd(&input[i * 16 + 8 + (j * 2 + 1) * old_height]);
-            ymm11 = _mm256_loadu_pd(&input[i * 16 + 12 + (j * 2 + 1) * old_height]);
+            ymm8 = _mm256_loadu_pd(&input[i * 16 + (j * 2 + 1) * old_width]);
+            ymm9 = _mm256_loadu_pd(&input[i * 16 + 4 + (j * 2 + 1) * old_width]);
+            ymm10 = _mm256_loadu_pd(&input[i * 16 + 8 + (j * 2 + 1) * old_width]);
+            ymm11 = _mm256_loadu_pd(&input[i * 16 + 12 + (j * 2 + 1) * old_width]);
 
             // line: 1
             ymm4 = _mm256_shuffle_pd(ymm0, ymm1, 0xc); // r21, r22, r33, r34
@@ -1164,16 +1159,16 @@ void post_process_edge(double* input, double* output, int old_width, int old_hei
             ymm6 = _mm256_permute2f128_pd(ymm4, ymm5, 0x20); // r21, r22, r23, r24      #1
             ymm7 = _mm256_permute2f128_pd(ymm4, ymm5, 0x30); // r33, r34, r35, r36      #4
 
-            _mm256_storeu_pd(&output[i * 16 + j * 2 * old_height], ymm6);
-            _mm256_storeu_pd(&output[i * 16 + 12 + j * 2 * old_height], ymm7);
+            _mm256_storeu_pd(&output[i * 16 + j * 2 * old_width], ymm6);
+            _mm256_storeu_pd(&output[i * 16 + 12 + j * 2 * old_width], ymm7);
 
             // line: 2
             ymm12 = _mm256_shuffle_pd(ymm8, ymm9, 0xc);
             ymm13 = _mm256_shuffle_pd(ymm10, ymm11, 0xc);
             ymm14 = _mm256_permute2f128_pd(ymm12, ymm13, 0x20); //  #1
             ymm15 = _mm256_permute2f128_pd(ymm12, ymm13, 0x30); //  #4
-            _mm256_storeu_pd(&output[i * 16 + (j * 2 + 1) * old_height], ymm14);
-            _mm256_storeu_pd(&output[i * 16 + 12 + (j * 2 + 1) * old_height], ymm15);
+            _mm256_storeu_pd(&output[i * 16 + (j * 2 + 1) * old_width], ymm14);
+            _mm256_storeu_pd(&output[i * 16 + 12 + (j * 2 + 1) * old_width], ymm15);
 
             // line: 1
             ymm4 = _mm256_shuffle_pd(ymm0, ymm1, 0x3); // r25, r26, r29, r30
@@ -1181,8 +1176,8 @@ void post_process_edge(double* input, double* output, int old_width, int old_hei
             ymm6 = _mm256_permute2f128_pd(ymm4, ymm5, 0x20); // r25, r26, r27, r28      #2
             ymm7 = _mm256_permute2f128_pd(ymm4, ymm5, 0x30); // r29, r30, r31, r32      #3
 
-            _mm256_storeu_pd(&output[i * 16 + 4 + j * 2 * old_height], ymm6);
-            _mm256_storeu_pd(&output[i * 16 + 8 + j * 2 * old_height], ymm7);
+            _mm256_storeu_pd(&output[i * 16 + 4 + j * 2 * old_width], ymm6);
+            _mm256_storeu_pd(&output[i * 16 + 8 + j * 2 * old_width], ymm7);
 
             // line: 2
             ymm12 = _mm256_shuffle_pd(ymm8, ymm9, 0x3);
@@ -1190,8 +1185,8 @@ void post_process_edge(double* input, double* output, int old_width, int old_hei
             ymm14 = _mm256_permute2f128_pd(ymm12, ymm13, 0x20); //  #2
             ymm15 = _mm256_permute2f128_pd(ymm12, ymm13, 0x30); //  #3
 
-            _mm256_storeu_pd(&output[i * 16 + 4 + (j * 2 + 1) * old_height], ymm14);
-            _mm256_storeu_pd(&output[i * 16 + 8 + (j * 2 + 1) * old_height], ymm15);
+            _mm256_storeu_pd(&output[i * 16 + 4 + (j * 2 + 1) * old_width], ymm14);
+            _mm256_storeu_pd(&output[i * 16 + 8 + (j * 2 + 1) * old_width], ymm15);
         }
     }
 }
